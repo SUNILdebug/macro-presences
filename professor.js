@@ -192,28 +192,6 @@ async function checkAuthentication() {
 
   currentUser = data.session.user;
 
-  const { data: professor, error: professorError } = await sb
-    .from("professors")
-    .select("*")
-    .eq("id", currentUser.id)
-    .maybeSingle();
-
-  if (professorError) {
-    console.error(professorError);
-  }
-
-  if (!professor) {
-    await sb.auth.signOut();
-
-    showLogin();
-    showMessage(
-      "Ce compte n'est pas autorisé à accéder à l'espace professeur.",
-      "error"
-    );
-
-    return;
-  }
-
   showDashboard();
 
   await loadAllData();
@@ -305,6 +283,7 @@ function showDashboard() {
 async function loadAllData() {
   try {
     await expireSessions();
+
     await Promise.all([
       loadStudents(),
       loadSessions()
@@ -315,8 +294,10 @@ async function loadAllData() {
     renderStudents();
     renderSessions();
     renderRanking();
+
   } catch (error) {
     console.error(error);
+
     showMessage(
       "Une erreur est survenue lors du chargement des données.",
       "error"
@@ -442,6 +423,7 @@ async function openNewSession() {
       error.message || "Impossible d'ouvrir la session.",
       "error"
     );
+
   } finally {
     if (button) {
       button.disabled = false;
@@ -499,6 +481,7 @@ async function closeCurrentSession() {
       error.message || "Impossible de fermer la session.",
       "error"
     );
+
   } finally {
     if (button) {
       button.disabled = false;
@@ -728,6 +711,7 @@ async function addStudent() {
       error.message || "Impossible d'ajouter l'étudiant.",
       "error"
     );
+
   } finally {
     if (button) {
       button.disabled = false;
@@ -769,10 +753,12 @@ function openEditStudentModal(studentId) {
   if (idInput) idInput.value = student.id;
   if (nomInput) nomInput.value = student.nom || "";
   if (prenomInput) prenomInput.value = student.prenom || "";
+
   if (codeInput) {
     codeInput.value = student.student_identifier || "";
     codeInput.disabled = true;
   }
+
   if (parcoursInput) {
     parcoursInput.value = student.parcours || "";
   }
@@ -835,6 +821,7 @@ async function updateStudent() {
       error.message || "Impossible de modifier l'étudiant.",
       "error"
     );
+
   } finally {
     if (button) {
       button.disabled = false;
@@ -1133,6 +1120,7 @@ async function loadStudentStatistics(student) {
 
   const total = completedSessions.length;
   const absence = Math.max(total - presence, 0);
+
   const rate = total
     ? ((presence / total) * 100).toFixed(1)
     : "0.0";
@@ -1254,12 +1242,6 @@ function renderSessions() {
    ========================================================= */
 
 async function openSessionDetailModal(sessionId) {
-  /*
-    IMPORTANT :
-    On ferme toutes les autres modales AVANT d'ouvrir celle-ci.
-    Cela empêche le problème visible sur ta capture.
-  */
-
   closeAllModals();
 
   const session = sessions.find(
@@ -1646,6 +1628,7 @@ async function refreshDashboard() {
       "Données actualisées.",
       "success"
     );
+
   } catch (error) {
     console.error(error);
 

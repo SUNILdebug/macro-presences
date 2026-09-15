@@ -1,7 +1,11 @@
 -- ============================================================
 -- MACROÉCONOMIE 3 — SCRIPT MAÎTRE SUPABASE
--- VERSION CORRIGÉE — CODE APOGÉE
+-- VERSION COMPLÈTE — CODE APOGÉE
 -- À EXÉCUTER EN UNE SEULE FOIS
+-- ============================================================
+-- IMPORTANT : ce script ne supprime ni les étudiants, ni les
+-- séances, ni les présences déjà enregistrés. Il remplace les
+-- fonctions de l'ancienne version et ajoute le Code Apogée.
 -- ============================================================
 
 create extension if not exists pgcrypto;
@@ -56,15 +60,16 @@ insert into public.professors (user_id)
 select id
 from auth.users
 where id = (
-    select id
-    from auth.users
-    order by created_at asc
-    limit 1
+    select id from auth.users order by created_at asc limit 1
 )
 on conflict (user_id) do nothing;
 
+-- Les nouveaux comptes Supabase authentifiés peuvent également
+-- accéder à l'espace professeur.
+-- La table professors est conservée pour compatibilité.
+
 -- ============================================================
--- 3. COMPATIBILITÉ AVEC L'ANCIENNE BASE
+-- 3. COMPATIBILITÉ ANCIENNE BASE
 -- ============================================================
 
 alter table public.students
@@ -115,8 +120,12 @@ alter table public.attendances
 alter table public.attendances
     add column if not exists validated_at timestamptz default now();
 
+-- Les anciennes données restent en place.
+-- Pour une ancienne base, les colonnes déjà remplies
+-- ne sont pas écrasées.
+
 -- ============================================================
--- 4. INDEX
+-- 4. CONTRAINTES / INDEX
 -- ============================================================
 
 create unique index if not exists students_student_identifier_key
@@ -148,7 +157,7 @@ create index if not exists idx_attendances_session
 on public.attendances(session_id);
 
 -- ============================================================
--- 5. ANCIENNE SÉQUENCE — CONSERVÉE
+-- 5. SÉQUENCE ANCIENNE — CONSERVÉE POUR COMPATIBILITÉ
 -- ============================================================
 
 create sequence if not exists public.student_identifier_seq
@@ -156,8 +165,11 @@ create sequence if not exists public.student_identifier_seq
     increment by 1
     minvalue 101;
 
+-- Elle n'est plus utilisée pour les nouveaux étudiants :
+-- le Code Apogée est maintenant saisi par le professeur.
+
 -- ============================================================
--- 6. CONTRAINTES
+-- 6. CONTRAINTES PARCOURS / STATUT
 -- ============================================================
 
 do $$
@@ -177,8 +189,8 @@ begin
             )
         );
     end if;
-exception
-    when others then null;
+exception when others then
+    null;
 end $$;
 
 do $$
@@ -200,12 +212,12 @@ begin
             )
         );
     end if;
-exception
-    when others then null;
+exception when others then
+    null;
 end $$;
 
 -- ============================================================
--- 7. VÉRIFIER SI L'UTILISATEUR EST PROFESSEUR
+-- 7. SAVOIR SI L'UTILISATEUR EST PROFESSEUR
 -- ============================================================
 
 create or replace function public.is_professor()
@@ -215,11 +227,7 @@ stable
 security definer
 set search_path = public
 as $$
-    select exists (
-        select 1
-        from public.professors
-        where user_id = auth.uid()
-    );
+    select auth.uid() is not null;
 $$;
 
 -- ============================================================
@@ -320,8 +328,7 @@ as $$
 $$;
 
 -- ============================================================
--- 10. OUVRIR UNE SESSION
--- CORRECTION DU PROBLÈME DE TIME ZONE
+-- 10. OUVRIR UNE SÉANCE
 -- ============================================================
 
 create or replace function public.open_session(
@@ -335,7 +342,7 @@ as $$
 declare
     v_session public.sessions%rowtype;
     v_code varchar(3);
-    v_now timestamptz;
+    v_now timestamptz := now();
 begin
     if not public.is_professor() then
         raise exception 'Accès réservé au professeur.';
@@ -344,8 +351,6 @@ begin
     if p_duration_minutes < 5 or p_duration_minutes > 360 then
         raise exception 'La durée doit être comprise entre 5 et 360 minutes.';
     end if;
-
-    v_now := now();
 
     update public.sessions
     set status = 'EXPIREE'
@@ -394,7 +399,7 @@ end;
 $$;
 
 -- ============================================================
--- 11. FERMER MANUELLEMENT UNE SESSION
+-- 11. FERMER MANUELLEMENT UNE SÉANCE
 -- ============================================================
 
 create or replace function public.close_session(
@@ -419,7 +424,7 @@ begin
     returning * into v_session;
 
     if not found then
-        raise exception 'Session introuvable ou déjà fermée.';
+        raise exception 'Séance introuvable ou déjà fermée.';
     end if;
 
     return v_session;
@@ -427,7 +432,7 @@ end;
 $$;
 
 -- ============================================================
--- 12. EXPIRER AUTOMATIQUEMENT LES SESSIONS
+-- 12. EXPIRER LES SÉANCES TERMINÉES
 -- ============================================================
 
 create or replace function public.expire_sessions()
@@ -451,7 +456,7 @@ end;
 $$;
 
 -- ============================================================
--- 13. RÉCUPÉRER UNE SESSION DEPUIS LE QR CODE
+-- 13. RÉCUPÉRER UNE SÉANCE DEPUIS LE QR
 -- ============================================================
 
 create or replace function public.get_session_by_qr_token(
@@ -492,7 +497,7 @@ end;
 $$;
 
 -- ============================================================
--- 14. VALIDER UNE PRÉSENCE
+-- 14. VALIDER UNE PRÉSENCE — CODE APOGÉE
 -- ============================================================
 
 create or replace function public.validate_attendance(
@@ -522,8 +527,6 @@ begin
         );
     end if;
 
-    perform public.expire_sessions();
-
     select *
     into v_session
     from public.sessions
@@ -545,6 +548,7 @@ begin
     end if;
 
     if now() >= v_session.end_time then
+
         update public.sessions
         set status = 'EXPIREE'
         where id = v_session.id
@@ -565,6 +569,7 @@ begin
 
     if coalesce(upper(trim(p_confirmation_code)), '')
        <> upper(trim(v_session.confirmation_code)) then
+
         return json_build_object(
             'success', false,
             'message', 'Code de confirmation incorrect.'
@@ -584,6 +589,7 @@ begin
     end if;
 
     begin
+
         insert into public.attendances (
             student_id,
             session_id,
@@ -656,6 +662,8 @@ for select
 to authenticated
 using (user_id = auth.uid());
 
+-- Supprimer les anciennes variantes connues.
+
 drop policy if exists authenticated_students_all
 on public.students;
 
@@ -699,24 +707,19 @@ with check (public.is_professor());
 -- 17. DROITS
 -- ============================================================
 
-revoke all
-on table public.professors
+revoke all on table public.professors
 from anon, authenticated;
 
-revoke all
-on table public.students
+revoke all on table public.students
 from anon;
 
-revoke all
-on table public.sessions
+revoke all on table public.sessions
 from anon;
 
-revoke all
-on table public.attendances
+revoke all on table public.attendances
 from anon;
 
-grant select
-on public.professors
+grant select on public.professors
 to authenticated;
 
 grant select, insert, update, delete
@@ -731,68 +734,86 @@ grant select, insert, update, delete
 on public.attendances
 to authenticated;
 
-revoke all
-on function public.is_professor()
+revoke all on function public.is_professor()
 from public;
 
-revoke all
-on function public.register_student(varchar, varchar, varchar, varchar)
+revoke all on function public.register_student(
+    varchar,
+    varchar,
+    varchar,
+    varchar
+)
 from public;
 
-revoke all
-on function public.get_student_by_identifier(varchar)
+revoke all on function public.get_student_by_identifier(
+    varchar
+)
 from public;
 
-revoke all
-on function public.open_session(integer)
+revoke all on function public.open_session(
+    integer
+)
 from public;
 
-revoke all
-on function public.close_session(bigint)
+revoke all on function public.close_session(
+    bigint
+)
 from public;
 
-revoke all
-on function public.expire_sessions()
+revoke all on function public.expire_sessions()
 from public;
 
-revoke all
-on function public.get_session_by_qr_token(uuid)
+revoke all on function public.get_session_by_qr_token(
+    uuid
+)
 from public;
 
-revoke all
-on function public.validate_attendance(varchar, uuid, varchar)
+revoke all on function public.validate_attendance(
+    varchar,
+    uuid,
+    varchar
+)
 from public;
 
-grant execute
-on function public.is_professor()
+grant execute on function public.is_professor()
 to authenticated;
 
-grant execute
-on function public.register_student(varchar, varchar, varchar, varchar)
+grant execute on function public.register_student(
+    varchar,
+    varchar,
+    varchar,
+    varchar
+)
 to authenticated;
 
-grant execute
-on function public.get_student_by_identifier(varchar)
+grant execute on function public.get_student_by_identifier(
+    varchar
+)
 to anon, authenticated;
 
-grant execute
-on function public.open_session(integer)
+grant execute on function public.open_session(
+    integer
+)
 to authenticated;
 
-grant execute
-on function public.close_session(bigint)
+grant execute on function public.close_session(
+    bigint
+)
 to authenticated;
 
-grant execute
-on function public.expire_sessions()
+grant execute on function public.expire_sessions()
 to anon, authenticated;
 
-grant execute
-on function public.get_session_by_qr_token(uuid)
+grant execute on function public.get_session_by_qr_token(
+    uuid
+)
 to anon, authenticated;
 
-grant execute
-on function public.validate_attendance(varchar, uuid, varchar)
+grant execute on function public.validate_attendance(
+    varchar,
+    uuid,
+    varchar
+)
 to anon, authenticated;
 
 -- ============================================================
@@ -806,5 +827,5 @@ select
     (select count(*) from public.professors) as nombre_professeurs;
 
 -- ============================================================
--- FIN DU SCRIPT
+-- FIN DU SCRIPT MAÎTRE
 -- ============================================================
