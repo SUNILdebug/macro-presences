@@ -31,6 +31,14 @@ function setupModalClosers() {
   });
 }
 
+window.switchTab = (tabId) => {
+  $$(".tab-content").forEach(el => el.classList.add("hidden"));
+  $$(".tab-btn").forEach(el => el.classList.remove("active"));
+  
+  $(`#${tabId}`)?.classList.remove("hidden");
+  event.target.classList.add("active");
+};
+
 async function checkAuth() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) showDashboard(); else showLogin();
@@ -110,7 +118,7 @@ function renderActiveSession() {
     if (qrContainer) {
       qrContainer.innerHTML = "";
       const studentUrl = `${window.location.origin}${window.location.pathname.replace('professor.html', 'student.html')}?session=${encodeURIComponent(activeSession.qr_token)}`;
-      qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(studentUrl)}" alt="QR Code" />`;
+      qrContainer.innerHTML = `<img id="qrImage" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(studentUrl)}" alt="QR Code" />`;
     }
 
     if ($("#presentCount")) $("#presentCount").textContent = activeAttendanceList.length;
@@ -136,6 +144,31 @@ function renderActiveSession() {
     noActiveSec?.classList.remove("hidden");
   }
 }
+
+window.downloadQRCode = () => {
+  const img = $("#qrImage");
+  if (!img) return;
+  const a = document.createElement("a");
+  a.href = img.src;
+  a.download = `QRCode_Session_${activeSession?.session_date || 'active'}.png`;
+  a.click();
+};
+
+window.shareQRCode = () => {
+  if (!activeSession) return;
+  const studentUrl = `${window.location.origin}${window.location.pathname.replace('professor.html', 'student.html')}?session=${encodeURIComponent(activeSession.qr_token)}`;
+  
+  if (navigator.share) {
+    navigator.share({
+      title: 'Lien de Présence - Macroéconomie 3',
+      text: `Code de confirmation: ${activeSession.confirmation_code}`,
+      url: studentUrl,
+    });
+  } else {
+    navigator.clipboard.writeText(studentUrl);
+    showMessage("Lien de session copié dans le presse-papier !", "success");
+  }
+};
 
 function renderStudents() {
   const search = $("#studentSearch") ? $("#studentSearch").value.toLowerCase().trim() : "";
