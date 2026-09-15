@@ -5,7 +5,7 @@ let student=null;
 
 function message(t,type=""){const e=$("#studentMsg");e.textContent=t;e.className="message "+type}
 async function init(){
-  if(!token){$("#sessionBadge").textContent="QR manquant";$("#sessionBadge").className="badge badge-closed";$("#validateBtn").disabled=true;message("Cette page doit être ouverte depuis le QR projeté par le professeur.","error");return}
+  if(!token){$("#sessionBadge").textContent="QR manquant";$("#sessionBadge").className="badge badge-closed";$("#validateBtn").disabled=true;message("interface prof de macro.","error");return}
   const {data,error}=await sb.rpc("get_session_by_qr_token",{p_qr_token:token});
   if(error||!data||!data.length){$("#sessionBadge").textContent="Séance invalide ou terminée";$("#sessionBadge").className="badge badge-closed";$("#validateBtn").disabled=true;message("Le QR code n'est plus valide.","error");return}
   $("#sessionBadge").textContent="Séance active · Macroéconomie 3";$("#sessionBadge").className="badge badge-active";
