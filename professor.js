@@ -4,8 +4,6 @@ const $$ = s => document.querySelectorAll(s);
 let activeSession = null;
 let allStudents = [];
 let activeAttendanceList = [];
-let sessionsHistoryList = [];
-let rankingList = [];
 let refreshTimer = null;
 
 function showMessage(msg, type = "error") {
@@ -85,13 +83,11 @@ async function loadDashboardData() {
   activeSession = res.active_session || null;
   allStudents = res.students || [];
   activeAttendanceList = res.active_attendances || [];
-  sessionsHistoryList = res.sessions_history || [];
-  rankingList = res.ranking || [];
 
   renderActiveSession();
   renderStudents();
-  renderSessionsHistory(sessionsHistoryList);
-  renderRanking(rankingList);
+  renderSessionsHistory(res.sessions_history || []);
+  renderRanking(res.ranking || []);
 }
 
 function renderActiveSession() {
@@ -124,7 +120,7 @@ function renderActiveSession() {
           <div class="present-row">
             <div>
               <strong>${a.nom} ${a.prenom}</strong>
-              <br><small class="muted">Apogée: ${a.student_identifier}</small>
+              <br><small class="muted">Code: ${a.student_identifier}</small>
             </div>
             <span class="badge badge-active">${a.parcours}</span>
           </div>
@@ -154,8 +150,8 @@ function renderStudents() {
   if ($("#studentsEconometrieAppliquee")) $("#studentsEconometrieAppliquee").innerHTML = buildStudentTable(eaStudents);
 }
 
-function buildRankingTable(list) {
-  if (!list.length) return `<div class="empty">Aucune donnée pour cette filière.</div>`;
+function buildStudentTable(students) {
+  if (!students.length) return `<div class="empty">Aucun étudiant dans ce groupe.</div>`;
 
   return `
     <div class="table-wrap">
@@ -164,19 +160,19 @@ function buildRankingTable(list) {
           <tr>
             <th>Code Apogée</th>
             <th>Nom & Prénom</th>
-            <th>Présences</th>
-            <th>Absences</th>
-            <th>Taux de Présence</th>
+            <th>Parcours</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          ${list.map(r => `
+          ${students.map(s => `
             <tr>
-              <td><code>${r.student_identifier || '—'}</code></td>
-              <td><strong>${r.nom} ${r.prenom}</strong></td>
-              <td>${r.present_count} / ${r.total_sessions}</td>
-              <td><strong style="color: #ef4444;">${(r.total_sessions - r.present_count)}</strong></td>
-              <td><strong>${r.attendance_rate}%</strong></td>
+              <td><code>${s.student_identifier}</code></td>
+              <td><strong>${s.nom} ${s.prenom}</strong></td>
+              <td><span class="badge badge-neutral">${s.parcours}</span></td>
+              <td>
+                <button class="btn btn-secondary" onclick="editStudent(${s.id})">✏️ Modifier</button>
+              </td>
             </tr>
           `).join("")}
         </tbody>
@@ -184,6 +180,19 @@ function buildRankingTable(list) {
     </div>
   `;
 }
+
+window.editStudent = (id) => {
+  const s = allStudents.find(x => x.id === id);
+  if (!s) return;
+
+  if ($("#studentIdInput")) $("#studentIdInput").value = s.id;
+  if ($("#studentNomInput")) $("#studentNomInput").value = s.nom;
+  if ($("#studentPrenomInput")) $("#studentPrenomInput").value = s.prenom;
+  if ($("#studentCodeApogeeInput")) $("#studentCodeApogeeInput").value = s.student_identifier;
+  if ($("#studentParcoursInput")) $("#studentParcoursInput").value = s.parcours;
+  
+  openModal("studentModal");
+};
 
 if ($("#openSessionBtn")) {
   $("#openSessionBtn").onclick = async () => {
@@ -271,7 +280,6 @@ function renderSessionsHistory(sessions) {
             <th>Date</th>
             <th>Statut</th>
             <th>Présents</th>
-            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -280,9 +288,6 @@ function renderSessionsHistory(sessions) {
               <td><strong>${s.session_date}</strong></td>
               <td><span class="badge ${s.status === 'ACTIVE' ? 'badge-active' : 'badge-closed'}">${s.status}</span></td>
               <td><strong>${s.present_count}</strong> présent(s)</td>
-              <td>
-                <button class="btn btn-secondary" onclick="viewSessionDetails(${s.id}, '${s.session_date}')">🔍 Voir présents</button>
-              </td>
             </tr>
           `).join("")}
         </tbody>
@@ -290,55 +295,6 @@ function renderSessionsHistory(sessions) {
     </div>
   `;
 }
-
-window.viewSessionDetails = async (sessionId, sessionDate) => {
-  const { data, error } = await sb.from("attendances")
-    .select("validated_at, students(student_identifier, nom, prenom, parcours)")
-    .eq("session_id", sessionId);
-
-  if (error) {
-    showMessage("Erreur : " + error.message, "error");
-    return;
-  }
-
-  const modalTitle = $("#sessionDetailTitle");
-  const modalContent = $("#sessionDetailContent");
-
-  if (modalTitle) modalTitle.textContent = `Présences du ${sessionDate}`;
-
-  if (!data || data.length === 0) {
-    if (modalContent) modalContent.innerHTML = `<div class="empty">Aucun présent enregistré pour cette séance.</div>`;
-  } else {
-    if (modalContent) {
-      modalContent.innerHTML = `
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Code Apogée</th>
-                <th>Nom & Prénom</th>
-                <th>Parcours</th>
-                <th>Heure de validation</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.map(item => `
-                <tr>
-                  <td><code>${item.students?.student_identifier || '—'}</code></td>
-                  <td><strong>${item.students?.nom || ''} ${item.students?.prenom || ''}</strong></td>
-                  <td><span class="badge badge-neutral">${item.students?.parcours || '—'}</span></td>
-                  <td>${new Date(item.validated_at).toLocaleTimeString("fr-FR", { hour: '2-digit', minute: '2-digit' })}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }
-  }
-
-  openModal("sessionDetailModal");
-};
 
 function renderRanking(ranking) {
   const container = $("#rankingContainer");
@@ -353,20 +309,13 @@ function renderRanking(ranking) {
   const eaRanking = ranking.filter(r => (r.parcours || "").toLowerCase().includes("économétrie") || (r.parcours || "").toLowerCase().includes("econometrie"));
 
   container.innerHTML = `
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-      <button class="btn btn-secondary" onclick="printBilan()">🖨️ Imprimer / Exporter en PDF</button>
-      <button class="btn btn-secondary" onclick="copyBilanToClipboard()">📋 Copier le Bilan</button>
+    <div style="margin-bottom: 24px;">
+      <h3 style="color: #2563eb; margin-bottom: 12px; font-size: 1.1rem;">📘 Groupe : Analyse Économique</h3>
+      ${buildRankingTable(aeRanking)}
     </div>
-
-    <div id="printArea">
-      <div style="margin-bottom: 24px;">
-        <h3 style="color: #2563eb; margin-bottom: 12px; font-size: 1.1rem;">📘 Groupe : Analyse Économique</h3>
-        ${buildRankingTable(aeRanking)}
-      </div>
-      <div style="margin-top: 24px;">
-        <h3 style="color: #2563eb; margin-bottom: 12px; font-size: 1.1rem;">📗 Groupe : Économétrie Appliquée</h3>
-        ${buildRankingTable(eaRanking)}
-      </div>
+    <div style="margin-top: 24px;">
+      <h3 style="color: #2563eb; margin-bottom: 12px; font-size: 1.1rem;">📗 Groupe : Économétrie Appliquée</h3>
+      ${buildRankingTable(eaRanking)}
     </div>
   `;
 }
@@ -379,7 +328,6 @@ function buildRankingTable(list) {
       <table>
         <thead>
           <tr>
-            <th>Code Apogée</th>
             <th>Nom & Prénom</th>
             <th>Présences</th>
             <th>Absences</th>
@@ -389,7 +337,6 @@ function buildRankingTable(list) {
         <tbody>
           ${list.map(r => `
             <tr>
-              <td><code>${r.student_identifier || '—'}</code></td>
               <td><strong>${r.nom} ${r.prenom}</strong></td>
               <td>${r.present_count} / ${r.total_sessions}</td>
               <td><strong style="color: #ef4444;">${(r.total_sessions - r.present_count)}</strong></td>
@@ -401,32 +348,6 @@ function buildRankingTable(list) {
     </div>
   `;
 }
-
-window.printBilan = () => {
-  window.print();
-};
-
-window.copyBilanToClipboard = () => {
-  let text = "BILAN GLOBAL & TAUX DE PRÉSENCE (Macroéconomie 3)\n\n";
-  
-  text += "--- Groupe : Analyse Économique ---\n";
-  const ae = rankingList.filter(r => (r.parcours || "").toLowerCase().includes("analyse"));
-  ae.forEach(r => {
-    text += `Apogée: ${r.student_identifier || '—'} | ${r.nom} ${r.prenom} | Présences: ${r.present_count}/${r.total_sessions} | Absences: ${r.total_sessions - r.present_count} | Taux: ${r.attendance_rate}%\n`;
-  });
-
-  text += "\n--- Groupe : Économétrie Appliquée ---\n";
-  const ea = rankingList.filter(r => (r.parcours || "").toLowerCase().includes("économétrie") || (r.parcours || "").toLowerCase().includes("econometrie"));
-  ea.forEach(r => {
-    text += `Apogée: ${r.student_identifier || '—'} | ${r.nom} ${r.prenom} | Présences: ${r.present_count}/${r.total_sessions} | Absences: ${r.total_sessions - r.present_count} | Taux: ${r.attendance_rate}%\n`;
-  });
-
-  navigator.clipboard.writeText(text).then(() => {
-    showMessage("Bilan copié dans le presse-papier !", "success");
-  }).catch(err => {
-    showMessage("Erreur lors de la copie : " + err.message, "error");
-  });
-};
 
 if ($("#studentSearch")) $("#studentSearch").oninput = renderStudents;
 if ($("#studentParcoursFilter")) $("#studentParcoursFilter").onchange = renderStudents;
