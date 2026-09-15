@@ -1,50 +1,43 @@
 /* =========================================================
-   MACROÉCONOMIE 3 — PROFESSOR
+   MACROÉCONOMIE 3 — ESPACE PROFESSEUR
+   professor.js
    ========================================================= */
 
+let currentUser = null;
+let currentSession = null;
 let students = [];
 let sessions = [];
-let activeSession = null;
-let refreshTimer = null;
-
+let attendances = [];
 
 /* =========================================================
-   UTILITAIRES
+   OUTILS
    ========================================================= */
+
+function $(id) {
+  return document.getElementById(id);
+}
 
 function escapeHtml(value) {
   if (value === null || value === undefined) return "";
-
   return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-
-function showMessage(elementId, message, type = "") {
-  const element = document.getElementById(elementId);
-
-  if (!element) return;
-
-  element.textContent = message;
-  element.className = "message";
-
-  if (type) {
-    element.classList.add(type);
-  }
+function normalizeCode(value) {
+  return String(value || "").trim().toUpperCase();
 }
 
+function formatDate(value) {
+  if (!value) return "—";
 
-function formatDate(dateValue) {
-  if (!dateValue) return "—";
-
-  const date = new Date(dateValue);
+  const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return String(dateValue);
+    return value;
   }
 
   return date.toLocaleDateString("fr-FR", {
@@ -54,336 +47,801 @@ function formatDate(dateValue) {
   });
 }
 
+function formatDateTime(value) {
+  if (!value) return "—";
 
-function formatTime(timeValue) {
-  if (!timeValue) return "—";
+  const date = new Date(value);
 
-  return String(timeValue).substring(0, 5);
-}
-
-
-function formatDateTime(dateValue, timeValue = null) {
-  if (timeValue) {
-    return `${formatDate(dateValue)} à ${formatTime(timeValue)}`;
+  if (Number.isNaN(date.getTime())) {
+    return value;
   }
 
-  return formatDate(dateValue);
+  return date.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
+function showMessage(message, type = "info") {
+  const box = $("message");
 
-function normalizeCode(code) {
-  return String(code || "").trim().toUpperCase();
-}
-
-
-function getTrackClass(track) {
-  if (track === "Analyse économique") {
-    return "track-economic";
+  if (!box) {
+    alert(message);
+    return;
   }
 
-  return "track-econometrics";
+  box.textContent = message;
+  box.className = `message ${type}`;
+
+  setTimeout(() => {
+    box.classList.add("hidden");
+  }, 5000);
 }
 
+/* =========================================================
+   MODALES
+   IMPORTANT : UNE SEULE MODALE À LA FOIS
+   ========================================================= */
 
-function getStatusLabel(status) {
-  const labels = {
-    PROGRAMMEE: "Programmée",
-    ACTIVE: "Active",
-    FERMEE: "Fermée",
-    EXPIREE: "Expirée"
-  };
+const MODAL_IDS = [
+  "studentModal",
+  "editStudentModal",
+  "studentDetailModal",
+  "sessionDetailModal"
+];
 
-  return labels[status] || status || "—";
+function closeAllModals() {
+  MODAL_IDS.forEach(id => {
+    const modal = $(id);
+
+    if (modal) {
+      modal.classList.remove("show");
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+    }
+  });
+
+  document.body.classList.remove("modal-open");
 }
 
+function openModal(id) {
+  closeAllModals();
 
-function getStatusClass(status) {
-  const classes = {
-    PROGRAMMEE: "status-programmee",
-    ACTIVE: "status-active",
-    FERMEE: "status-fermee",
-    EXPIREE: "status-expiree"
-  };
+  const modal = $(id);
 
-  return classes[status] || "";
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+  modal.classList.add("show");
+  modal.style.display = "flex";
+
+  document.body.classList.add("modal-open");
 }
 
+function closeModal(id) {
+  const modal = $(id);
+
+  if (!modal) return;
+
+  modal.classList.remove("show");
+  modal.classList.add("hidden");
+  modal.style.display = "none";
+
+  const anotherOpen = MODAL_IDS.some(modalId => {
+    const element = $(modalId);
+    return element && element.classList.contains("show");
+  });
+
+  if (!anotherOpen) {
+    document.body.classList.remove("modal-open");
+  }
+}
+
+function setupModalClosing() {
+  MODAL_IDS.forEach(id => {
+    const modal = $(id);
+
+    if (!modal) return;
+
+    modal.addEventListener("click", event => {
+      if (event.target === modal) {
+        closeModal(id);
+      }
+    });
+
+    const closeButtons = modal.querySelectorAll(
+      "[data-close-modal], .modal-close, .close-modal"
+    );
+
+    closeButtons.forEach(button => {
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeModal(id);
+      });
+    });
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      closeAllModals();
+    }
+  });
+}
 
 /* =========================================================
    AUTHENTIFICATION
    ========================================================= */
 
-async function getCurrentUser() {
-  const {
-    data,
-    error
-  } = await sb.auth.getUser();
+async function checkAuthentication() {
+  const { data, error } = await sb.auth.getSession();
 
   if (error) {
     console.error(error);
-    return null;
+    showLogin();
+    return;
   }
 
-  return data?.user || null;
-}
-
-
-async function checkAuthentication() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    document.getElementById("loginSection").hidden = false;
-    document.getElementById("dashboardSection").hidden = true;
-    document.getElementById("logoutBtn").hidden = true;
-    return false;
+  if (!data.session) {
+    showLogin();
+    return;
   }
 
-  document.getElementById("loginSection").hidden = true;
-  document.getElementById("dashboardSection").hidden = false;
-  document.getElementById("logoutBtn").hidden = false;
+  currentUser = data.session.user;
 
-  await initializeDashboard();
+  const { data: professor, error: professorError } = await sb
+    .from("professors")
+    .select("*")
+    .eq("id", currentUser.id)
+    .maybeSingle();
 
-  return true;
+  if (professorError) {
+    console.error(professorError);
+  }
+
+  if (!professor) {
+    await sb.auth.signOut();
+
+    showLogin();
+    showMessage(
+      "Ce compte n'est pas autorisé à accéder à l'espace professeur.",
+      "error"
+    );
+
+    return;
+  }
+
+  showDashboard();
+
+  await loadAllData();
 }
 
+async function login(email, password) {
+  const button = $("loginBtn");
 
-async function loginProfessor(event) {
-  event.preventDefault();
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Connexion...";
+  }
 
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value;
-
-  showMessage("loginMessage", "Connexion en cours...");
-
-  const {
-    data,
-    error
-  } = await sb.auth.signInWithPassword({
+  const { data, error } = await sb.auth.signInWithPassword({
     email,
     password
   });
 
+  if (button) {
+    button.disabled = false;
+    button.textContent = "Se connecter";
+  }
+
   if (error) {
     console.error(error);
 
     showMessage(
-      "loginMessage",
-      error.message || "Impossible de se connecter.",
+      "Adresse e-mail ou mot de passe incorrect.",
       "error"
     );
 
     return;
   }
 
-  if (!data?.user) {
-    showMessage(
-      "loginMessage",
-      "Connexion impossible.",
-      "error"
-    );
+  currentUser = data.user;
 
-    return;
-  }
-
-  const authenticated = await checkAuthentication();
-
-  if (!authenticated) {
-    showMessage(
-      "loginMessage",
-      "Ce compte ne possède pas les droits professeur.",
-      "error"
-    );
-  }
+  await checkAuthentication();
 }
 
+async function logout() {
+  closeAllModals();
 
-async function logoutProfessor() {
   await sb.auth.signOut();
 
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
+  currentUser = null;
+  currentSession = null;
 
-  window.location.reload();
+  showLogin();
 }
-
 
 /* =========================================================
-   CHARGEMENT DU TABLEAU DE BORD
+   AFFICHAGE LOGIN / DASHBOARD
    ========================================================= */
 
-async function initializeDashboard() {
-  await loadStudents();
-  await loadSessions();
-  await loadActiveSession();
+function showLogin() {
+  const loginSection = $("loginSection");
+  const dashboardSection = $("dashboardSection");
 
-  renderStudents();
-  renderRanking();
-  renderHistory();
-
-  startAutomaticRefresh();
-}
-
-
-function startAutomaticRefresh() {
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
+  if (loginSection) {
+    loginSection.classList.remove("hidden");
+    loginSection.style.display = "";
   }
 
-  refreshTimer = setInterval(async () => {
-    if (document.hidden) return;
+  if (dashboardSection) {
+    dashboardSection.classList.add("hidden");
+    dashboardSection.style.display = "none";
+  }
+}
 
-    await loadSessions();
-    await loadActiveSession();
+function showDashboard() {
+  const loginSection = $("loginSection");
+  const dashboardSection = $("dashboardSection");
+
+  if (loginSection) {
+    loginSection.classList.add("hidden");
+    loginSection.style.display = "none";
+  }
+
+  if (dashboardSection) {
+    dashboardSection.classList.remove("hidden");
+    dashboardSection.style.display = "";
+  }
+}
+
+/* =========================================================
+   CHARGEMENT DES DONNÉES
+   ========================================================= */
+
+async function loadAllData() {
+  try {
+    await expireSessions();
+    await Promise.all([
+      loadStudents(),
+      loadSessions()
+    ]);
+
+    await loadCurrentSession();
 
     renderStudents();
+    renderSessions();
     renderRanking();
-    renderHistory();
-  }, 10000);
+  } catch (error) {
+    console.error(error);
+    showMessage(
+      "Une erreur est survenue lors du chargement des données.",
+      "error"
+    );
+  }
 }
 
-
-/* =========================================================
-   ÉTUDIANTS
-   ========================================================= */
-
 async function loadStudents() {
-  const {
-    data,
-    error
-  } = await sb
+  const { data, error } = await sb
     .from("students")
     .select("*")
+    .order("parcours", { ascending: true })
     .order("nom", { ascending: true })
     .order("prenom", { ascending: true });
 
   if (error) {
-    console.error("Erreur étudiants :", error);
-
-    showMessage(
-      "studentFormMessage",
-      "Impossible de charger les étudiants.",
-      "error"
-    );
-
-    return;
+    console.error(error);
+    throw error;
   }
 
   students = data || [];
 }
 
+async function loadSessions() {
+  const { data, error } = await sb
+    .from("sessions")
+    .select("*")
+    .order("session_date", { ascending: false })
+    .order("start_time", { ascending: false });
 
-async function registerStudent(event) {
-  event.preventDefault();
+  if (error) {
+    console.error(error);
+    throw error;
+  }
 
-  const nom = document.getElementById("studentNom").value.trim();
-  const prenom = document.getElementById("studentPrenom").value.trim();
-  const codeApogee = normalizeCode(
-    document.getElementById("studentCodeApogee").value
+  sessions = data || [];
+}
+
+async function loadCurrentSession() {
+  const activeSessions = sessions.filter(
+    session => session.status === "ACTIVE"
   );
-  const parcours = document.getElementById("studentParcours").value;
+
+  if (!activeSessions.length) {
+    currentSession = null;
+    renderNoActiveSession();
+    return;
+  }
+
+  currentSession = activeSessions[0];
+
+  await loadAttendances(currentSession.id);
+  renderCurrentSession();
+}
+
+async function loadAttendances(sessionId) {
+  const { data, error } = await sb
+    .from("attendances")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("validated_at", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    attendances = [];
+    return;
+  }
+
+  attendances = data || [];
+}
+
+/* =========================================================
+   SESSIONS
+   ========================================================= */
+
+async function expireSessions() {
+  const { error } = await sb.rpc("expire_sessions");
+
+  if (error) {
+    console.warn("Expiration des sessions :", error.message);
+  }
+}
+
+async function openNewSession() {
+  const button = $("openSessionBtn");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Ouverture...";
+  }
+
+  try {
+    await expireSessions();
+
+    const { data, error } = await sb.rpc("open_session", {
+      p_duration_minutes: 120
+    });
+
+    if (error) {
+      console.error(error);
+      throw error;
+    }
+
+    currentSession = Array.isArray(data) ? data[0] : data;
+
+    await loadSessions();
+
+    if (currentSession && currentSession.id) {
+      await loadAttendances(currentSession.id);
+    }
+
+    renderCurrentSession();
+
+    showMessage(
+      "La nouvelle session a été ouverte.",
+      "success"
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    showMessage(
+      error.message || "Impossible d'ouvrir la session.",
+      "error"
+    );
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Ouvrir une nouvelle session";
+    }
+  }
+}
+
+async function closeCurrentSession() {
+  if (!currentSession) {
+    showMessage("Aucune session active.", "error");
+    return;
+  }
+
+  const confirmed = confirm(
+    "Voulez-vous vraiment fermer cette session ?"
+  );
+
+  if (!confirmed) return;
+
+  const button = $("closeSessionBtn");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Fermeture...";
+  }
+
+  try {
+    const { error } = await sb.rpc("close_session", {
+      p_session_id: currentSession.id
+    });
+
+    if (error) {
+      console.error(error);
+      throw error;
+    }
+
+    currentSession = null;
+
+    await loadSessions();
+    await loadCurrentSession();
+
+    renderSessions();
+    renderRanking();
+
+    showMessage(
+      "La session a été fermée.",
+      "success"
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    showMessage(
+      error.message || "Impossible de fermer la session.",
+      "error"
+    );
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Fermer la session";
+    }
+  }
+}
+
+function renderNoActiveSession() {
+  const section = $("activeSessionSection");
+
+  if (section) {
+    section.classList.add("hidden");
+  }
+
+  const empty = $("noActiveSession");
+
+  if (empty) {
+    empty.classList.remove("hidden");
+  }
+}
+
+function renderCurrentSession() {
+  const section = $("activeSessionSection");
+  const empty = $("noActiveSession");
+
+  if (!currentSession) {
+    renderNoActiveSession();
+    return;
+  }
+
+  if (empty) {
+    empty.classList.add("hidden");
+  }
+
+  if (section) {
+    section.classList.remove("hidden");
+  }
+
+  const dateElement = $("activeSessionDate");
+  const startElement = $("activeSessionStart");
+  const endElement = $("activeSessionEnd");
+  const codeElement = $("confirmationCode");
+  const countElement = $("presentCount");
+
+  if (dateElement) {
+    dateElement.textContent = formatDate(
+      currentSession.session_date
+    );
+  }
+
+  if (startElement) {
+    startElement.textContent = formatDateTime(
+      currentSession.start_time
+    );
+  }
+
+  if (endElement) {
+    endElement.textContent = formatDateTime(
+      currentSession.end_time
+    );
+  }
+
+  if (codeElement) {
+    codeElement.textContent =
+      currentSession.confirmation_code || "---";
+  }
+
+  if (countElement) {
+    countElement.textContent = attendances.length;
+  }
+
+  renderQRCode();
+  renderAttendanceList();
+}
+
+function renderQRCode() {
+  const container = $("qrcode");
+
+  if (!container || !currentSession) return;
+
+  container.innerHTML = "";
+
+  if (!currentSession.qr_token) {
+    container.textContent = "QR indisponible";
+    return;
+  }
+
+  const studentUrl =
+    `${window.location.origin}${window.location.pathname.replace(
+      "professor.html",
+      "student.html"
+    )}?session=${encodeURIComponent(currentSession.qr_token)}`;
+
+  if (typeof QRCode !== "undefined") {
+    new QRCode(container, {
+      text: studentUrl,
+      width: 220,
+      height: 220
+    });
+  } else {
+    container.innerHTML = `
+      <div class="qr-error">
+        QR code indisponible.
+      </div>
+    `;
+  }
+}
+
+function renderAttendanceList() {
+  const container = $("attendanceList");
+
+  if (!container) return;
+
+  if (!attendances.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        Aucun étudiant n'a encore validé sa présence.
+      </div>
+    `;
+    return;
+  }
+
+  const rows = attendances.map(attendance => {
+    const student = students.find(
+      student => student.id === attendance.student_id
+    );
+
+    return `
+      <div class="attendance-row">
+        <div>
+          <strong>
+            ${escapeHtml(
+              student
+                ? `${student.nom} ${student.prenom}`
+                : attendance.student_identifier || "Étudiant"
+            )}
+          </strong>
+        </div>
+
+        <div>
+          ${escapeHtml(
+            student?.student_identifier ||
+            attendance.student_identifier ||
+            "—"
+          )}
+        </div>
+
+        <div>
+          ${escapeHtml(
+            student?.parcours || "—"
+          )}
+        </div>
+
+        <div>
+          ${formatDateTime(attendance.validated_at)}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = rows.join("");
+}
+
+/* =========================================================
+   ÉTUDIANTS
+   ========================================================= */
+
+async function addStudent() {
+  const nom = $("studentNomInput")?.value.trim();
+  const prenom = $("studentPrenomInput")?.value.trim();
+  const codeApogee = normalizeCode(
+    $("studentCodeApogeeInput")?.value
+  );
+  const parcours = $("studentParcoursInput")?.value;
 
   if (!nom || !prenom || !codeApogee || !parcours) {
     showMessage(
-      "studentFormMessage",
       "Veuillez remplir tous les champs.",
       "error"
     );
-
     return;
   }
 
-  showMessage(
-    "studentFormMessage",
-    "Enregistrement en cours..."
-  );
+  const button = $("saveStudentBtn");
 
-  const {
-    data,
-    error
-  } = await sb.rpc("register_student", {
-    p_nom: nom,
-    p_prenom: prenom,
-    p_code_apogee: codeApogee,
-    p_parcours: parcours
-  });
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Enregistrement...";
+  }
 
-  if (error) {
-    console.error("Erreur register_student :", error);
+  try {
+    const { data, error } = await sb.rpc("register_student", {
+      p_nom: nom,
+      p_prenom: prenom,
+      p_code_apogee: codeApogee,
+      p_parcours: parcours
+    });
+
+    if (error) {
+      console.error(error);
+      throw error;
+    }
+
+    closeModal("studentModal");
+
+    const form = $("studentForm");
+
+    if (form) {
+      form.reset();
+    }
+
+    await loadStudents();
+
+    renderStudents();
+    renderRanking();
 
     showMessage(
-      "studentFormMessage",
-      error.message || "Impossible d'enregistrer l'étudiant.",
-      "error"
+      "Étudiant ajouté avec succès.",
+      "success"
     );
 
+  } catch (error) {
+    console.error(error);
+
+    showMessage(
+      error.message || "Impossible d'ajouter l'étudiant.",
+      "error"
+    );
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Enregistrer";
+    }
+  }
+}
+
+function openAddStudentModal() {
+  closeAllModals();
+
+  const form = $("studentForm");
+
+  if (form) {
+    form.reset();
+  }
+
+  openModal("studentModal");
+}
+
+function openEditStudentModal(studentId) {
+  closeAllModals();
+
+  const student = students.find(
+    item => String(item.id) === String(studentId)
+  );
+
+  if (!student) {
+    showMessage("Étudiant introuvable.", "error");
     return;
   }
 
-  console.log("Étudiant enregistré :", data);
+  const idInput = $("editStudentId");
+  const nomInput = $("editStudentNom");
+  const prenomInput = $("editStudentPrenom");
+  const codeInput = $("editStudentCodeApogee");
+  const parcoursInput = $("editStudentParcours");
 
-  document.getElementById("studentForm").reset();
+  if (idInput) idInput.value = student.id;
+  if (nomInput) nomInput.value = student.nom || "";
+  if (prenomInput) prenomInput.value = student.prenom || "";
+  if (codeInput) {
+    codeInput.value = student.student_identifier || "";
+    codeInput.disabled = true;
+  }
+  if (parcoursInput) {
+    parcoursInput.value = student.parcours || "";
+  }
 
-  closeModal("studentModal");
-
-  await loadStudents();
-
-  renderStudents();
-  renderRanking();
+  openModal("editStudentModal");
 }
 
-
-async function updateStudent(event) {
-  event.preventDefault();
-
-  const id = document.getElementById("editStudentId").value;
-  const nom = document.getElementById("editStudentNom").value.trim();
-  const prenom = document.getElementById("editStudentPrenom").value.trim();
-  const parcours = document.getElementById("editStudentParcours").value;
+async function updateStudent() {
+  const id = $("editStudentId")?.value;
+  const nom = $("editStudentNom")?.value.trim();
+  const prenom = $("editStudentPrenom")?.value.trim();
+  const parcours = $("editStudentParcours")?.value;
 
   if (!id || !nom || !prenom || !parcours) {
     showMessage(
-      "editStudentMessage",
       "Veuillez remplir tous les champs.",
       "error"
     );
-
     return;
   }
 
-  const {
-    error
-  } = await sb
-    .from("students")
-    .update({
-      nom,
-      prenom,
-      parcours
-    })
-    .eq("id", id);
+  const button = $("updateStudentBtn");
 
-  if (error) {
-    console.error("Erreur modification étudiant :", error);
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Enregistrement...";
+  }
+
+  try {
+    const { error } = await sb
+      .from("students")
+      .update({
+        nom,
+        prenom,
+        parcours
+      })
+      .eq("id", id);
+
+    if (error) {
+      console.error(error);
+      throw error;
+    }
+
+    closeModal("editStudentModal");
+
+    await loadStudents();
+
+    renderStudents();
+    renderRanking();
 
     showMessage(
-      "editStudentMessage",
+      "Étudiant modifié avec succès.",
+      "success"
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    showMessage(
       error.message || "Impossible de modifier l'étudiant.",
       "error"
     );
-
-    return;
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Enregistrer";
+    }
   }
-
-  closeModal("editStudentModal");
-
-  await loadStudents();
-
-  renderStudents();
-  renderRanking();
 }
-
 
 async function deleteStudent(studentId) {
   const student = students.find(
@@ -392,97 +850,111 @@ async function deleteStudent(studentId) {
 
   if (!student) return;
 
-  const confirmed = window.confirm(
-    `Supprimer ${student.prenom} ${student.nom} ?\n\nSes présences associées seront également supprimées.`
+  const confirmed = confirm(
+    `Supprimer ${student.nom} ${student.prenom} ?`
   );
 
   if (!confirmed) return;
 
-  const {
-    error
-  } = await sb
-    .from("students")
-    .delete()
-    .eq("id", studentId);
+  try {
+    const { error } = await sb
+      .from("students")
+      .delete()
+      .eq("id", studentId);
 
-  if (error) {
-    console.error("Erreur suppression étudiant :", error);
+    if (error) {
+      console.error(error);
+      throw error;
+    }
 
-    alert(
-      error.message || "Impossible de supprimer l'étudiant."
+    await loadStudents();
+
+    renderStudents();
+    renderRanking();
+
+    showMessage(
+      "Étudiant supprimé.",
+      "success"
     );
 
-    return;
+  } catch (error) {
+    console.error(error);
+
+    showMessage(
+      error.message || "Impossible de supprimer l'étudiant.",
+      "error"
+    );
   }
-
-  await loadStudents();
-
-  renderStudents();
-  renderRanking();
 }
-
 
 /* =========================================================
    AFFICHAGE DES ÉTUDIANTS
    ========================================================= */
 
 function renderStudents() {
-  const economicContainer =
-    document.getElementById("economicStudents");
+  const economicContainer = $("studentsAnalyseEconomique");
+  const econometricsContainer = $("studentsEconometrieAppliquee");
 
-  const econometricsContainer =
-    document.getElementById("econometricsStudents");
-
-  if (!economicContainer || !econometricsContainer) {
+  if (!economicContainer && !econometricsContainer) {
     return;
   }
 
   const search =
-    document.getElementById("studentSearch")
-      ?.value
-      .trim()
-      .toLowerCase() || "";
+    $("studentSearch")?.value.trim().toLowerCase() || "";
 
   const filter =
-    document.getElementById("trackFilter")
-      ?.value || "";
+    $("studentParcoursFilter")?.value || "";
 
-  const filtered = students.filter(student => {
-    const fullText = [
-      student.nom,
-      student.prenom,
-      student.student_identifier,
-      student.parcours
-    ]
-      .join(" ")
-      .toLowerCase();
+  let filtered = [...students];
 
-    const matchesSearch =
-      !search || fullText.includes(search);
+  if (search) {
+    filtered = filtered.filter(student => {
+      const text = [
+        student.nom,
+        student.prenom,
+        student.student_identifier,
+        student.parcours
+      ]
+        .join(" ")
+        .toLowerCase();
 
-    const matchesTrack =
-      !filter || student.parcours === filter;
+      return text.includes(search);
+    });
+  }
 
-    return matchesSearch && matchesTrack;
-  });
+  if (filter) {
+    filtered = filtered.filter(
+      student => student.parcours === filter
+    );
+  }
 
-  const economic = filtered.filter(
+  const analyse = filtered.filter(
     student => student.parcours === "Analyse économique"
   );
 
-  const econometrics = filtered.filter(
+  const econometrie = filtered.filter(
     student => student.parcours === "Économétrie appliquée"
   );
 
-  economicContainer.innerHTML =
-    renderStudentsTable(economic);
+  if (economicContainer) {
+    economicContainer.innerHTML =
+      renderStudentTable(analyse);
+  }
 
-  econometricsContainer.innerHTML =
-    renderStudentsTable(econometrics);
+  if (econometricsContainer) {
+    econometricsContainer.innerHTML =
+      renderStudentTable(econometrie);
+  }
+
+  const allContainer = $("studentsTableBody");
+
+  if (allContainer) {
+    allContainer.innerHTML =
+      filtered.map(student => renderStudentRow(student)).join("");
+  }
 }
 
-
-function renderStudentsTable(list) {
+function renderStudentTable(list) {
   if (!list.length) {
     return `
       <div class="empty-state">
@@ -496,6 +968,7 @@ function renderStudentsTable(list) {
       <table>
         <thead>
           <tr>
+            <th>#</th>
             <th>Nom</th>
             <th>Prénom</th>
             <th>Code Apogée</th>
@@ -504,775 +977,546 @@ function renderStudentsTable(list) {
         </thead>
 
         <tbody>
-          ${list.map(student => `
-            <tr>
-              <td>${escapeHtml(student.nom)}</td>
-              <td>${escapeHtml(student.prenom)}</td>
-              <td>${escapeHtml(student.student_identifier)}</td>
-
-              <td>
-                <div class="table-actions">
-
-                  <button
-                    class="small-btn"
-                    data-action="view-student"
-                    data-id="${student.id}"
-                  >
-                    Voir
-                  </button>
-
-                  <button
-                    class="small-btn"
-                    data-action="edit-student"
-                    data-id="${student.id}"
-                  >
-                    Modifier
-                  </button>
-
-                  <button
-                    class="small-btn danger-btn"
-                    data-action="delete-student"
-                    data-id="${student.id}"
-                  >
-                    Supprimer
-                  </button>
-
-                </div>
-              </td>
-            </tr>
-          `).join("")}
+          ${list.map((student, index) =>
+            renderStudentRow(student, index + 1)
+          ).join("")}
         </tbody>
       </table>
     </div>
   `;
 }
 
+function renderStudentRow(student, index = "") {
+  return `
+    <tr>
+      <td>${index}</td>
+
+      <td>
+        ${escapeHtml(student.nom)}
+      </td>
+
+      <td>
+        ${escapeHtml(student.prenom)}
+      </td>
+
+      <td>
+        <strong>
+          ${escapeHtml(student.student_identifier)}
+        </strong>
+      </td>
+
+      <td class="actions-cell">
+
+        <button
+          type="button"
+          class="secondary-btn"
+          onclick="openStudentDetailModal('${student.id}')"
+        >
+          Détails
+        </button>
+
+        <button
+          type="button"
+          class="secondary-btn"
+          onclick="openEditStudentModal('${student.id}')"
+        >
+          Modifier
+        </button>
+
+        <button
+          type="button"
+          class="danger-btn"
+          onclick="deleteStudent('${student.id}')"
+        >
+          Supprimer
+        </button>
+
+      </td>
+    </tr>
+  `;
+}
 
 /* =========================================================
-   SÉANCES
+   DÉTAIL ÉTUDIANT
    ========================================================= */
 
-async function loadSessions() {
-  const {
-    data,
-    error
-  } = await sb
-    .from("sessions")
-    .select("*")
-    .order("session_date", { ascending: false })
-    .order("start_time", { ascending: false });
+async function openStudentDetailModal(studentId) {
+  closeAllModals();
 
-  if (error) {
-    console.error("Erreur sessions :", error);
-    return;
-  }
-
-  sessions = data || [];
-}
-
-
-async function loadActiveSession() {
-  await sb.rpc("expire_sessions");
-
-  const {
-    data,
-    error
-  } = await sb
-    .from("sessions")
-    .select("*")
-    .eq("status", "ACTIVE")
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    console.error("Erreur session active :", error);
-    return;
-  }
-
-  activeSession = data?.[0] || null;
-
-  if (activeSession) {
-    await loadActiveSessionAttendances();
-    renderActiveSession();
-  } else {
-    hideActiveSession();
-  }
-}
-
-
-async function openNewSession() {
-  const button =
-    document.getElementById("openSessionBtn");
-
-  if (button) {
-    button.disabled = true;
-  }
-
-  showMessage(
-    "sessionActionMessage",
-    "Ouverture de la séance..."
+  const student = students.find(
+    item => String(item.id) === String(studentId)
   );
 
-  const {
-    data,
-    error
-  } = await sb.rpc("open_session", {
-    p_duration_minutes: 120
-  });
-
-  if (error) {
-    console.error("Erreur open_session :", error);
-
-    showMessage(
-      "sessionActionMessage",
-      error.message || "Impossible d'ouvrir la séance.",
-      "error"
-    );
-
-    if (button) {
-      button.disabled = false;
-    }
-
+  if (!student) {
+    showMessage("Étudiant introuvable.", "error");
     return;
   }
 
-  console.log("Nouvelle séance :", data);
+  const title = $("studentDetailTitle");
+  const content = $("studentDetailContent");
 
-  showMessage(
-    "sessionActionMessage",
-    "Séance ouverte.",
-    "success"
-  );
-
-  await loadSessions();
-  await loadActiveSession();
-
-  renderHistory();
-
-  if (button) {
-    button.disabled = false;
-  }
-}
-
-
-async function closeActiveSession() {
-  if (!activeSession) return;
-
-  const confirmed = window.confirm(
-    "Voulez-vous vraiment fermer cette séance ?"
-  );
-
-  if (!confirmed) return;
-
-  const {
-    error
-  } = await sb.rpc("close_session", {
-    p_session_id: activeSession.id
-  });
-
-  if (error) {
-    console.error("Erreur fermeture séance :", error);
-
-    showMessage(
-      "sessionActionMessage",
-      error.message || "Impossible de fermer la séance.",
-      "error"
-    );
-
-    return;
+  if (title) {
+    title.textContent =
+      `${student.nom} ${student.prenom}`;
   }
 
-  activeSession = null;
+  if (content) {
+    content.innerHTML = `
+      <div class="student-detail-card">
 
-  await loadSessions();
-  await loadActiveSession();
+        <div class="detail-item">
+          <span>Nom</span>
+          <strong>${escapeHtml(student.nom)}</strong>
+        </div>
 
-  renderHistory();
-  renderRanking();
-}
+        <div class="detail-item">
+          <span>Prénom</span>
+          <strong>${escapeHtml(student.prenom)}</strong>
+        </div>
 
+        <div class="detail-item">
+          <span>Code Apogée</span>
+          <strong>${escapeHtml(student.student_identifier)}</strong>
+        </div>
 
-/* =========================================================
-   PRÉSENCES DE LA SÉANCE ACTIVE
-   ========================================================= */
+        <div class="detail-item">
+          <span>Parcours</span>
+          <strong>${escapeHtml(student.parcours)}</strong>
+        </div>
 
-async function loadActiveSessionAttendances() {
-  if (!activeSession) return;
+        <div id="studentStats">
+          Chargement des statistiques...
+        </div>
 
-  const {
-    data,
-    error
-  } = await sb
-    .from("attendances")
-    .select(`
-      id,
-      student_id,
-      session_id,
-      validated_at,
-      students (
-        id,
-        nom,
-        prenom,
-        student_identifier,
-        parcours
-      )
-    `)
-    .eq("session_id", activeSession.id)
-    .order("validated_at", { ascending: true });
-
-  if (error) {
-    console.error(
-      "Erreur présences session active :",
-      error
-    );
-
-    activeSession.attendances = [];
-
-    return;
-  }
-
-  activeSession.attendances = data || [];
-}
-
-
-function renderActiveSession() {
-  if (!activeSession) {
-    hideActiveSession();
-    return;
-  }
-
-  const section =
-    document.getElementById("activeSessionSection");
-
-  section.hidden = false;
-
-  document.getElementById("activeSessionDate").textContent =
-    `${formatDate(activeSession.session_date)} — ${formatTime(activeSession.start_time)} à ${formatTime(activeSession.end_time)}`;
-
-  document.getElementById("confirmationCode").textContent =
-    activeSession.confirmation_code || "—";
-
-  const attendanceCount =
-    activeSession.attendances?.length || 0;
-
-  document.getElementById("presentCount").textContent =
-    attendanceCount;
-
-  document.getElementById("activeSessionStatus").textContent =
-    getStatusLabel(activeSession.status);
-
-  const qrImage =
-    document.getElementById("qrCodeImage");
-
-  const studentUrl =
-    `${window.location.origin}${window.location.pathname.replace("professor.html", "")}student.html?session=${encodeURIComponent(activeSession.qr_token)}`;
-
-  qrImage.src =
-    `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(studentUrl)}`;
-
-  qrImage.alt =
-    "QR code permettant de rejoindre la séance";
-
-  const presentList =
-    document.getElementById("presentList");
-
-  const attendances =
-    activeSession.attendances || [];
-
-  if (!attendances.length) {
-    presentList.innerHTML = `
-      <div class="empty-state">
-        Aucun étudiant présent pour le moment.
       </div>
+    `;
+  }
+
+  openModal("studentDetailModal");
+
+  await loadStudentStatistics(student);
+}
+
+async function loadStudentStatistics(student) {
+  const container = $("studentStats");
+
+  if (!container) return;
+
+  const { data, error } = await sb
+    .from("attendances")
+    .select("session_id, validated_at")
+    .eq("student_id", student.id);
+
+  if (error) {
+    console.error(error);
+
+    container.innerHTML = `
+      <p>Impossible de charger les statistiques.</p>
     `;
 
     return;
   }
 
-  presentList.innerHTML = `
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Nom</th>
-            <th>Prénom</th>
-            <th>Code Apogée</th>
-            <th>Parcours</th>
-            <th>Heure</th>
-          </tr>
-        </thead>
+  const completedSessions = sessions.filter(
+    session =>
+      session.status === "FERMEE" ||
+      session.status === "EXPIREE"
+  );
 
-        <tbody>
-          ${attendances.map((attendance, index) => {
-            const student = attendance.students;
+  const presentSessionIds = new Set(
+    (data || []).map(item => String(item.session_id))
+  );
 
-            return `
-              <tr>
-                <td>${index + 1}</td>
-                <td>${escapeHtml(student?.nom)}</td>
-                <td>${escapeHtml(student?.prenom)}</td>
-                <td>${escapeHtml(student?.student_identifier)}</td>
-                <td>${escapeHtml(student?.parcours)}</td>
-                <td>${formatValidatedTime(attendance.validated_at)}</td>
-              </tr>
-            `;
-          }).join("")}
-        </tbody>
-      </table>
+  const presence = completedSessions.filter(
+    session => presentSessionIds.has(String(session.id))
+  ).length;
+
+  const total = completedSessions.length;
+  const absence = Math.max(total - presence, 0);
+  const rate = total
+    ? ((presence / total) * 100).toFixed(1)
+    : "0.0";
+
+  container.innerHTML = `
+    <div class="student-stats">
+
+      <div class="stat-card">
+        <span>Sessions terminées</span>
+        <strong>${total}</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Présences</span>
+        <strong>${presence}</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Absences</span>
+        <strong>${absence}</strong>
+      </div>
+
+      <div class="stat-card">
+        <span>Taux</span>
+        <strong>${rate}%</strong>
+      </div>
+
+    </div>
+
+    <h3>Historique</h3>
+
+    <div class="student-session-history">
+
+      ${
+        completedSessions.length
+          ? completedSessions.map(session => `
+              <div class="history-row">
+
+                <span>
+                  ${formatDate(session.session_date)}
+                </span>
+
+                <strong>
+                  ${
+                    presentSessionIds.has(String(session.id))
+                      ? "Présent"
+                      : "Absent"
+                  }
+                </strong>
+
+              </div>
+            `).join("")
+          : `
+            <p>Aucune session terminée.</p>
+          `
+      }
+
     </div>
   `;
 }
 
-
-function formatValidatedTime(value) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-
-function hideActiveSession() {
-  const section =
-    document.getElementById("activeSessionSection");
-
-  if (section) {
-    section.hidden = true;
-  }
-}
-
-
 /* =========================================================
-   HISTORIQUE
+   HISTORIQUE DES SÉANCES
    ========================================================= */
 
-function renderHistory() {
-  const container =
-    document.getElementById("sessionsHistory");
+function renderSessions() {
+  const container = $("sessionsList");
 
   if (!container) return;
 
-  const completedSessions =
-    sessions.filter(session =>
-      ["FERMEE", "EXPIREE"].includes(session.status)
-    );
-
-  const active =
-    sessions.filter(session => session.status === "ACTIVE");
-
-  const programmable =
-    sessions.filter(session => session.status === "PROGRAMMEE");
-
-  const ordered = [
-    ...active,
-    ...programmable,
-    ...completedSessions
-  ];
-
-  if (!ordered.length) {
+  if (!sessions.length) {
     container.innerHTML = `
       <div class="empty-state">
         Aucune séance enregistrée.
       </div>
     `;
-
     return;
   }
 
-  container.innerHTML = `
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Horaire</th>
-            <th>Statut</th>
-            <th>Présents</th>
-            <th>Action</th>
-          </tr>
-        </thead>
+  container.innerHTML = sessions.map(session => `
+    <div class="session-card">
 
-        <tbody>
-          ${ordered.map(session => `
-            <tr>
-              <td>${formatDate(session.session_date)}</td>
+      <div>
+        <strong>
+          Macroéconomie 3
+        </strong>
 
-              <td>
-                ${formatTime(session.start_time)}
-                —
-                ${formatTime(session.end_time)}
-              </td>
+        <span>
+          ${formatDate(session.session_date)}
+        </span>
+      </div>
 
-              <td>
-                <span class="status-badge ${getStatusClass(session.status)}">
-                  ${getStatusLabel(session.status)}
-                </span>
-              </td>
+      <div>
+        <span class="status status-${String(
+          session.status || ""
+        ).toLowerCase()}">
+          ${escapeHtml(session.status)}
+        </span>
+      </div>
 
-              <td>
-                <span
-                  class="session-present-count"
-                  data-session-count="${session.id}"
-                >
-                  —
-                </span>
-              </td>
+      <div>
+        ${formatDateTime(session.start_time)}
+      </div>
 
-              <td>
-                <button
-                  class="small-btn"
-                  data-action="view-session"
-                  data-id="${session.id}"
-                >
-                  Voir
-                </button>
-              </td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
+      <button
+        type="button"
+        class="secondary-btn"
+        onclick="openSessionDetailModal('${session.id}')"
+      >
+        Détails
+      </button>
+
     </div>
-  `;
-
-  loadSessionCounts();
+  `).join("");
 }
-
-
-async function loadSessionCounts() {
-  const completedSessions =
-    sessions.filter(session =>
-      ["FERMEE", "EXPIREE"].includes(session.status)
-    );
-
-  for (const session of completedSessions) {
-    const {
-      count,
-      error
-    } = await sb
-      .from("attendances")
-      .select("*", {
-        count: "exact",
-        head: true
-      })
-      .eq("session_id", session.id);
-
-    if (error) {
-      console.error(
-        "Erreur compteur séance :",
-        error
-      );
-
-      continue;
-    }
-
-    const element =
-      document.querySelector(
-        `[data-session-count="${session.id}"]`
-      );
-
-    if (element) {
-      element.textContent = count || 0;
-    }
-  }
-
-  if (activeSession) {
-    const element =
-      document.querySelector(
-        `[data-session-count="${activeSession.id}"]`
-      );
-
-    if (element) {
-      element.textContent =
-        activeSession.attendances?.length || 0;
-    }
-  }
-}
-
 
 /* =========================================================
-   DÉTAIL D'UNE SÉANCE
+   DÉTAIL SÉANCE
    ========================================================= */
 
-async function showSessionDetail(sessionId) {
-  const session =
-    sessions.find(
-      item => String(item.id) === String(sessionId)
-    );
+async function openSessionDetailModal(sessionId) {
+  /*
+    IMPORTANT :
+    On ferme toutes les autres modales AVANT d'ouvrir celle-ci.
+    Cela empêche le problème visible sur ta capture.
+  */
 
-  if (!session) return;
+  closeAllModals();
 
-  const modal =
-    document.getElementById("sessionDetailModal");
+  const session = sessions.find(
+    item => String(item.id) === String(sessionId)
+  );
 
-  const content =
-    document.getElementById("sessionDetailContent");
+  if (!session) {
+    showMessage("Séance introuvable.", "error");
+    return;
+  }
 
-  content.innerHTML = `
-    <div class="loading">
-      Chargement...
-    </div>
-  `;
+  const title = $("sessionDetailTitle");
+  const content = $("sessionDetailContent");
 
-  modal.hidden = false;
+  if (title) {
+    title.textContent = "Détail de la séance";
+  }
 
-  const {
-    data,
-    error
-  } = await sb
+  if (content) {
+    content.innerHTML = `
+      <div class="session-detail-card">
+
+        <div class="detail-item">
+          <span>Matière</span>
+          <strong>Macroéconomie 3</strong>
+        </div>
+
+        <div class="detail-item">
+          <span>Date</span>
+          <strong>${formatDate(session.session_date)}</strong>
+        </div>
+
+        <div class="detail-item">
+          <span>Début</span>
+          <strong>${formatDateTime(session.start_time)}</strong>
+        </div>
+
+        <div class="detail-item">
+          <span>Fin</span>
+          <strong>${formatDateTime(session.end_time)}</strong>
+        </div>
+
+        <div class="detail-item">
+          <span>Statut</span>
+          <strong>${escapeHtml(session.status)}</strong>
+        </div>
+
+        <div id="sessionDetailAttendance">
+          Chargement...
+        </div>
+
+      </div>
+    `;
+  }
+
+  openModal("sessionDetailModal");
+
+  await loadSessionDetailAttendance(session);
+}
+
+async function loadSessionDetailAttendance(session) {
+  const container = $("sessionDetailAttendance");
+
+  if (!container) return;
+
+  const { data, error } = await sb
     .from("attendances")
-    .select(`
-      student_id,
-      validated_at,
-      students (
-        id,
-        nom,
-        prenom,
-        student_identifier,
-        parcours
-      )
-    `)
+    .select("*")
     .eq("session_id", session.id)
     .order("validated_at", { ascending: true });
 
   if (error) {
-    console.error("Erreur détail séance :", error);
+    console.error(error);
 
-    content.innerHTML = `
-      <p class="message error">
-        Impossible de charger le détail de cette séance.
-      </p>
+    container.innerHTML = `
+      <p>Impossible de charger les présences.</p>
     `;
 
     return;
   }
 
-  const attendanceMap = new Map(
-    (data || []).map(item => [
-      String(item.student_id),
-      item
-    ])
-  );
+  const sessionAttendances = data || [];
 
-  const isCompleted =
-    ["FERMEE", "EXPIREE"].includes(session.status);
+  const completed =
+    session.status === "FERMEE" ||
+    session.status === "EXPIREE";
 
-  content.innerHTML = `
-    <div class="detail-header">
-      <h4>
-        ${formatDate(session.session_date)}
-      </h4>
+  container.innerHTML = `
+    <h3>
+      Présences : ${sessionAttendances.length}
+    </h3>
 
-      <p>
-        ${formatTime(session.start_time)}
-        —
-        ${formatTime(session.end_time)}
-      </p>
+    ${
+      sessionAttendances.length
+        ? `
+          <div class="session-attendance-list">
+            ${sessionAttendances.map(attendance => {
 
-      <span class="status-badge ${getStatusClass(session.status)}">
-        ${getStatusLabel(session.status)}
-      </span>
-    </div>
+              const student = students.find(
+                item =>
+                  String(item.id) ===
+                  String(attendance.student_id)
+              );
 
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Nom</th>
-            <th>Prénom</th>
-            <th>Code Apogée</th>
-            <th>Parcours</th>
-            <th>Présence</th>
-            <th>Heure</th>
-          </tr>
-        </thead>
+              return `
+                <div class="history-row">
 
-        <tbody>
-          ${students.map(student => {
-            const attendance =
-              attendanceMap.get(String(student.id));
-
-            let status = "Non validé";
-
-            if (attendance) {
-              status = "Présent";
-            } else if (isCompleted) {
-              status = "Absent";
-            }
-
-            return `
-              <tr>
-                <td>${escapeHtml(student.nom)}</td>
-                <td>${escapeHtml(student.prenom)}</td>
-                <td>${escapeHtml(student.student_identifier)}</td>
-                <td>${escapeHtml(student.parcours)}</td>
-                <td>
-                  <span class="${attendance ? "present-status" : "absent-status"}">
-                    ${status}
+                  <span>
+                    ${
+                      student
+                        ? escapeHtml(
+                            `${student.nom} ${student.prenom}`
+                          )
+                        : escapeHtml(
+                            attendance.student_identifier ||
+                            "Étudiant"
+                          )
+                    }
                   </span>
-                </td>
-                <td>
-                  ${
-                    attendance
-                      ? formatValidatedTime(attendance.validated_at)
-                      : "—"
-                  }
-                </td>
-              </tr>
-            `;
-          }).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
 
-  modal.hidden = false;
+                  <strong>
+                    Présent
+                  </strong>
+
+                </div>
+              `;
+
+            }).join("")}
+          </div>
+        `
+        : `
+          <div class="empty-state">
+            ${
+              completed
+                ? "Aucun étudiant n'a validé sa présence."
+                : "Non validé"
+            }
+          </div>
+        `
+    }
+  `;
 }
 
-
 /* =========================================================
-   CLASSEMENT / STATISTIQUES
+   CLASSEMENT
    ========================================================= */
 
-async function calculateStudentStatistics() {
-  const completedSessions =
-    sessions.filter(session =>
-      ["FERMEE", "EXPIREE"].includes(session.status)
-    );
+function renderRanking() {
+  const container = $("rankingContainer");
+
+  if (!container) return;
+
+  const completedSessions = sessions.filter(
+    session =>
+      session.status === "FERMEE" ||
+      session.status === "EXPIREE"
+  );
 
   if (!completedSessions.length) {
-    return students.map(student => ({
-      student,
-      totalSessions: 0,
-      presence: 0,
-      absence: 0,
-      rate: 0
-    }));
+    container.innerHTML = `
+      <div class="empty-state">
+        Le classement apparaîtra après les premières séances terminées.
+      </div>
+    `;
+    return;
   }
 
-  const sessionIds =
-    completedSessions.map(session => session.id);
+  loadRankingData(container, completedSessions);
+}
 
-  const {
-    data,
-    error
-  } = await sb
+async function loadRankingData(container, completedSessions) {
+  const sessionIds = completedSessions.map(
+    session => session.id
+  );
+
+  if (!sessionIds.length) return;
+
+  const { data, error } = await sb
     .from("attendances")
     .select("student_id, session_id")
     .in("session_id", sessionIds);
 
   if (error) {
-    console.error(
-      "Erreur statistiques :",
-      error
-    );
+    console.error(error);
 
-    return students.map(student => ({
-      student,
-      totalSessions: completedSessions.length,
-      presence: 0,
-      absence: completedSessions.length,
-      rate: 0
-    }));
-  }
+    container.innerHTML = `
+      <div class="empty-state">
+        Impossible de charger le classement.
+      </div>
+    `;
 
-  const attendanceMap = new Map();
-
-  (data || []).forEach(item => {
-    const studentId = String(item.student_id);
-
-    if (!attendanceMap.has(studentId)) {
-      attendanceMap.set(studentId, new Set());
-    }
-
-    attendanceMap
-      .get(studentId)
-      .add(String(item.session_id));
-  });
-
-  return students.map(student => {
-    const totalSessions =
-      completedSessions.length;
-
-    const presence =
-      attendanceMap.get(String(student.id))?.size || 0;
-
-    const absence =
-      totalSessions - presence;
-
-    const rate =
-      totalSessions > 0
-        ? (presence / totalSessions) * 100
-        : 0;
-
-    return {
-      student,
-      totalSessions,
-      presence,
-      absence,
-      rate
-    };
-  });
-}
-
-
-async function renderRanking() {
-  const economicContainer =
-    document.getElementById("economicRanking");
-
-  const econometricsContainer =
-    document.getElementById("econometricsRanking");
-
-  if (!economicContainer || !econometricsContainer) {
     return;
   }
 
-  economicContainer.innerHTML = `
-    <div class="loading">
-      Calcul...
-    </div>
+  const rows = students.map(student => {
+    const studentAttendances = (data || []).filter(
+      attendance =>
+        String(attendance.student_id) ===
+        String(student.id)
+    );
+
+    const presence = studentAttendances.length;
+    const total = completedSessions.length;
+    const absence = Math.max(total - presence, 0);
+    const rate = total
+      ? (presence / total) * 100
+      : 0;
+
+    return {
+      student,
+      presence,
+      absence,
+      total,
+      rate
+    };
+  });
+
+  const analyse = rows
+    .filter(
+      row =>
+        row.student.parcours ===
+        "Analyse économique"
+    )
+    .sort(compareRanking);
+
+  const econometrie = rows
+    .filter(
+      row =>
+        row.student.parcours ===
+        "Économétrie appliquée"
+    )
+    .sort(compareRanking);
+
+  container.innerHTML = `
+    <section class="ranking-group">
+
+      <h3>
+        Analyse économique
+      </h3>
+
+      ${renderRankingTable(analyse)}
+
+    </section>
+
+    <section class="ranking-group">
+
+      <h3>
+        Économétrie appliquée
+      </h3>
+
+      ${renderRankingTable(econometrie)}
+
+    </section>
   `;
-
-  econometricsContainer.innerHTML = `
-    <div class="loading">
-      Calcul...
-    </div>
-  `;
-
-  const statistics =
-    await calculateStudentStatistics();
-
-  const economic =
-    statistics
-      .filter(item =>
-        item.student.parcours === "Analyse économique"
-      )
-      .sort(sortRanking);
-
-  const econometrics =
-    statistics
-      .filter(item =>
-        item.student.parcours === "Économétrie appliquée"
-      )
-      .sort(sortRanking);
-
-  economicContainer.innerHTML =
-    renderRankingTable(economic);
-
-  econometricsContainer.innerHTML =
-    renderRankingTable(econometrics);
 }
 
-
-function sortRanking(a, b) {
+function compareRanking(a, b) {
   if (b.rate !== a.rate) {
     return b.rate - a.rate;
   }
@@ -1281,345 +1525,177 @@ function sortRanking(a, b) {
     return b.presence - a.presence;
   }
 
-  const nameA =
-    `${a.student.nom} ${a.student.prenom}`.toLowerCase();
-
-  const nameB =
-    `${b.student.nom} ${b.student.prenom}`.toLowerCase();
-
-  return nameA.localeCompare(nameB, "fr");
+  return `${a.student.nom} ${a.student.prenom}`.localeCompare(
+    `${b.student.nom} ${b.student.prenom}`,
+    "fr"
+  );
 }
 
-
-function renderRankingTable(list) {
-  if (!list.length) {
+function renderRankingTable(rows) {
+  if (!rows.length) {
     return `
       <div class="empty-state">
-        Aucun étudiant dans ce parcours.
+        Aucun étudiant.
       </div>
     `;
   }
 
   return `
     <div class="table-wrapper">
+
       <table>
+
         <thead>
           <tr>
-            <th>Rang</th>
+            <th>#</th>
             <th>Nom</th>
             <th>Prénom</th>
             <th>Code Apogée</th>
-            <th>Séances</th>
-            <th>Présence</th>
-            <th>Absence</th>
+            <th>Sessions</th>
+            <th>Présences</th>
+            <th>Absences</th>
             <th>Taux</th>
           </tr>
         </thead>
 
         <tbody>
-          ${list.map((item, index) => `
+
+          ${rows.map((row, index) => `
             <tr>
-              <td>
-                <strong>${index + 1}</strong>
-              </td>
-
-              <td>${escapeHtml(item.student.nom)}</td>
-
-              <td>${escapeHtml(item.student.prenom)}</td>
 
               <td>
-                ${escapeHtml(item.student.student_identifier)}
+                ${index + 1}
               </td>
-
-              <td>${item.totalSessions}</td>
-
-              <td>${item.presence}</td>
-
-              <td>${item.absence}</td>
 
               <td>
-                <strong>
-                  ${item.rate.toFixed(1)} %
-                </strong>
+                ${escapeHtml(row.student.nom)}
               </td>
+
+              <td>
+                ${escapeHtml(row.student.prenom)}
+              </td>
+
+              <td>
+                ${escapeHtml(
+                  row.student.student_identifier
+                )}
+              </td>
+
+              <td>
+                ${row.total}
+              </td>
+
+              <td>
+                ${row.presence}
+              </td>
+
+              <td>
+                ${row.absence}
+              </td>
+
+              <td>
+                ${row.rate.toFixed(1)}%
+              </td>
+
             </tr>
           `).join("")}
+
         </tbody>
+
       </table>
+
     </div>
   `;
 }
-
 
 /* =========================================================
-   DÉTAIL D'UN ÉTUDIANT
+   RECHERCHE / FILTRES
    ========================================================= */
 
-async function showStudentDetail(studentId) {
-  const student =
-    students.find(
-      item => String(item.id) === String(studentId)
-    );
+function setupSearchAndFilters() {
+  const search = $("studentSearch");
 
-  if (!student) return;
-
-  const modal =
-    document.getElementById("studentDetailModal");
-
-  const content =
-    document.getElementById("studentDetailContent");
-
-  content.innerHTML = `
-    <div class="loading">
-      Chargement...
-    </div>
-  `;
-
-  modal.hidden = false;
-
-  const completedSessions =
-    sessions.filter(session =>
-      ["FERMEE", "EXPIREE"].includes(session.status)
-    );
-
-  const {
-    data,
-    error
-  } = await sb
-    .from("attendances")
-    .select("session_id, validated_at")
-    .eq("student_id", student.id);
-
-  if (error) {
-    console.error(
-      "Erreur détail étudiant :",
-      error
-    );
-
-    content.innerHTML = `
-      <p class="message error">
-        Impossible de charger les données.
-      </p>
-    `;
-
-    return;
+  if (search) {
+    search.addEventListener("input", renderStudents);
   }
 
-  const attendanceMap = new Map(
-    (data || []).map(item => [
-      String(item.session_id),
-      item
-    ])
-  );
+  const filter = $("studentParcoursFilter");
 
-  const total =
-    completedSessions.length;
-
-  const presence =
-    completedSessions.filter(session =>
-      attendanceMap.has(String(session.id))
-    ).length;
-
-  const absence =
-    total - presence;
-
-  const rate =
-    total > 0
-      ? (presence / total) * 100
-      : 0;
-
-  content.innerHTML = `
-    <div class="student-profile">
-      <h4>
-        ${escapeHtml(student.prenom)}
-        ${escapeHtml(student.nom)}
-      </h4>
-
-      <p>
-        <strong>Code Apogée :</strong>
-        ${escapeHtml(student.student_identifier)}
-      </p>
-
-      <p>
-        <strong>Parcours :</strong>
-        ${escapeHtml(student.parcours)}
-      </p>
-    </div>
-
-    <div class="stats-grid">
-
-      <div class="info-box">
-        <span class="info-label">Séances</span>
-        <strong>${total}</strong>
-      </div>
-
-      <div class="info-box">
-        <span class="info-label">Présence</span>
-        <strong>${presence}</strong>
-      </div>
-
-      <div class="info-box">
-        <span class="info-label">Absence</span>
-        <strong>${absence}</strong>
-      </div>
-
-      <div class="info-box">
-        <span class="info-label">Taux</span>
-        <strong>${rate.toFixed(1)} %</strong>
-      </div>
-
-    </div>
-
-    <h4 class="detail-section-title">
-      Détail des séances
-    </h4>
-
-    ${
-      completedSessions.length
-        ? `
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Horaire</th>
-                  <th>Statut</th>
-                  <th>Heure de validation</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                ${completedSessions.map(session => {
-                  const attendance =
-                    attendanceMap.get(String(session.id));
-
-                  return `
-                    <tr>
-                      <td>
-                        ${formatDate(session.session_date)}
-                      </td>
-
-                      <td>
-                        ${formatTime(session.start_time)}
-                        —
-                        ${formatTime(session.end_time)}
-                      </td>
-
-                      <td>
-                        ${
-                          attendance
-                            ? "Présent"
-                            : "Absent"
-                        }
-                      </td>
-
-                      <td>
-                        ${
-                          attendance
-                            ? formatValidatedTime(
-                                attendance.validated_at
-                              )
-                            : "—"
-                        }
-                      </td>
-                    </tr>
-                  `;
-                }).join("")}
-              </tbody>
-            </table>
-          </div>
-        `
-        : `
-          <div class="empty-state">
-            Aucune séance terminée.
-          </div>
-        `
-    }
-  `;
+  if (filter) {
+    filter.addEventListener("change", renderStudents);
+  }
 }
-
 
 /* =========================================================
-   MODALES
+   RAFRAÎCHISSEMENT
    ========================================================= */
 
-function openModal(id) {
-  const modal = document.getElementById(id);
+async function refreshDashboard() {
+  try {
+    await expireSessions();
 
-  if (modal) {
-    modal.hidden = false;
-  }
-}
+    await loadStudents();
+    await loadSessions();
+    await loadCurrentSession();
 
+    renderStudents();
+    renderSessions();
+    renderRanking();
 
-function closeModal(id) {
-  const modal = document.getElementById(id);
-
-  if (modal) {
-    modal.hidden = true;
-  }
-}
-
-
-function openEditStudent(studentId) {
-  const student =
-    students.find(
-      item => String(item.id) === String(studentId)
+    showMessage(
+      "Données actualisées.",
+      "success"
     );
+  } catch (error) {
+    console.error(error);
 
-  if (!student) return;
-
-  document.getElementById("editStudentId").value =
-    student.id;
-
-  document.getElementById("editStudentNom").value =
-    student.nom || "";
-
-  document.getElementById("editStudentPrenom").value =
-    student.prenom || "";
-
-  document.getElementById("editStudentCodeApogee").value =
-    student.student_identifier || "";
-
-  document.getElementById("editStudentParcours").value =
-    student.parcours || "";
-
-  showMessage("editStudentMessage", "");
-
-  openModal("editStudentModal");
+    showMessage(
+      "Impossible d'actualiser les données.",
+      "error"
+    );
+  }
 }
-
 
 /* =========================================================
    ÉVÉNEMENTS
    ========================================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+function setupEvents() {
 
-  const loginForm =
-    document.getElementById("loginForm");
+  /* Connexion */
+
+  const loginForm = $("loginForm");
 
   if (loginForm) {
-    loginForm.addEventListener(
-      "submit",
-      loginProfessor
-    );
+    loginForm.addEventListener("submit", async event => {
+      event.preventDefault();
+
+      const email = $("email")?.value.trim();
+      const password = $("password")?.value;
+
+      if (!email || !password) {
+        showMessage(
+          "Veuillez remplir les deux champs.",
+          "error"
+        );
+        return;
+      }
+
+      await login(email, password);
+    });
   }
 
+  /* Déconnexion */
 
-  const logoutBtn =
-    document.getElementById("logoutBtn");
+  const logoutBtn = $("logoutBtn");
 
   if (logoutBtn) {
-    logoutBtn.addEventListener(
-      "click",
-      logoutProfessor
-    );
+    logoutBtn.addEventListener("click", logout);
   }
 
+  /* Nouvelle session */
 
-  const openSessionBtn =
-    document.getElementById("openSessionBtn");
+  const openSessionBtn = $("openSessionBtn");
 
   if (openSessionBtn) {
     openSessionBtn.addEventListener(
@@ -1628,193 +1704,92 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  /* Fermer session */
 
-  const closeSessionBtn =
-    document.getElementById("closeSessionBtn");
+  const closeSessionBtn = $("closeSessionBtn");
 
   if (closeSessionBtn) {
     closeSessionBtn.addEventListener(
       "click",
-      closeActiveSession
+      closeCurrentSession
     );
   }
 
+  /* Rafraîchir */
 
-  const refreshSessionBtn =
-    document.getElementById("refreshSessionBtn");
+  const refreshBtn = $("refreshBtn");
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener(
+      "click",
+      refreshDashboard
+    );
+  }
+
+  const refreshSessionBtn = $("refreshSessionBtn");
 
   if (refreshSessionBtn) {
     refreshSessionBtn.addEventListener(
       "click",
-      async () => {
-        await loadSessions();
-        await loadActiveSession();
-        renderHistory();
-        renderRanking();
-      }
+      refreshDashboard
     );
   }
 
+  /* Ajouter étudiant */
 
-  const refreshHistoryBtn =
-    document.getElementById("refreshHistoryBtn");
-
-  if (refreshHistoryBtn) {
-    refreshHistoryBtn.addEventListener(
-      "click",
-      async () => {
-        await loadSessions();
-        await loadActiveSession();
-        renderHistory();
-      }
-    );
-  }
-
-
-  const refreshRankingBtn =
-    document.getElementById("refreshRankingBtn");
-
-  if (refreshRankingBtn) {
-    refreshRankingBtn.addEventListener(
-      "click",
-      renderRanking
-    );
-  }
-
-
-  const addStudentBtn =
-    document.getElementById("addStudentBtn");
+  const addStudentBtn = $("addStudentBtn");
 
   if (addStudentBtn) {
     addStudentBtn.addEventListener(
       "click",
-      () => {
-        showMessage("studentFormMessage", "");
-        openModal("studentModal");
-      }
+      openAddStudentModal
     );
   }
 
+  /* Formulaire étudiant */
 
-  const studentForm =
-    document.getElementById("studentForm");
+  const studentForm = $("studentForm");
 
   if (studentForm) {
     studentForm.addEventListener(
       "submit",
-      registerStudent
+      async event => {
+        event.preventDefault();
+        await addStudent();
+      }
     );
   }
 
+  /* Modifier étudiant */
 
-  const editStudentForm =
-    document.getElementById("editStudentForm");
+  const updateStudentBtn = $("updateStudentBtn");
 
-  if (editStudentForm) {
-    editStudentForm.addEventListener(
-      "submit",
+  if (updateStudentBtn) {
+    updateStudentBtn.addEventListener(
+      "click",
       updateStudent
     );
   }
 
+  /* Recherche */
 
-  const studentSearch =
-    document.getElementById("studentSearch");
+  setupSearchAndFilters();
 
-  if (studentSearch) {
-    studentSearch.addEventListener(
-      "input",
-      renderStudents
-    );
-  }
+  /* Modales */
 
-
-  const trackFilter =
-    document.getElementById("trackFilter");
-
-  if (trackFilter) {
-    trackFilter.addEventListener(
-      "change",
-      renderStudents
-    );
-  }
-
-
-  document.addEventListener(
-    "click",
-    async event => {
-
-      const actionElement =
-        event.target.closest("[data-action]");
-
-      if (actionElement) {
-
-        const action =
-          actionElement.dataset.action;
-
-        const id =
-          actionElement.dataset.id;
-
-        if (action === "view-student") {
-          await showStudentDetail(id);
-        }
-
-        if (action === "edit-student") {
-          openEditStudent(id);
-        }
-
-        if (action === "delete-student") {
-          await deleteStudent(id);
-        }
-
-        if (action === "view-session") {
-          await showSessionDetail(id);
-        }
-      }
-
-
-      const closeElement =
-        event.target.closest(
-          "[data-close-modal]"
-        );
-
-      if (closeElement) {
-        closeModal(
-          closeElement.dataset.closeModal
-        );
-      }
-    }
-  );
-
-
-  document.querySelectorAll(".modal").forEach(modal => {
-    modal.addEventListener("click", event => {
-      if (event.target === modal) {
-        modal.hidden = true;
-      }
-    });
-  });
-
-
-  checkAuthentication();
-});
-
+  setupModalClosing();
+}
 
 /* =========================================================
-   ÉTAT AUTH SUPABASE
+   INITIALISATION
    ========================================================= */
 
-sb.auth.onAuthStateChange(async (event, session) => {
+document.addEventListener("DOMContentLoaded", async () => {
 
-  if (event === "SIGNED_OUT") {
-    window.location.reload();
-    return;
-  }
+  closeAllModals();
 
-  if (
-    event === "SIGNED_IN" &&
-    session?.user
-  ) {
-    await checkAuthentication();
-  }
+  setupEvents();
+
+  await checkAuthentication();
+
 });
