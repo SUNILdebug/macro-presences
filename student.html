@@ -1,40 +1,200 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Présence — Macroéconomie 3</title>
+
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <script defer src="student.js"></script>
 </head>
+
 <body>
-<header class="topbar">
-  <div><strong>Macroéconomie 3</strong></div>
-</header>
-<main class="container student-container">
-  <section class="panel narrow">
-    <div id="sessionBadge" class="badge badge-neutral">Vérification de la séance…</div>
-    <h1>Valider ma présence</h1>
-    
 
-    <form id="attendanceForm">
-      <label>Code Apogée
-        <input id="identifier" inputmode="numeric" maxlength="10" placeholder="Code Apogée" required>
-      </label>
-      <button type="button" id="findStudentBtn" class="btn btn-secondary">Vérifier mon identité</button>
+  <main class="student-page">
 
-      <div id="identityCard" class="identity-card hidden"></div>
+    <section class="student-container">
 
-      <label>Code de confirmation
-        <input id="confirmationCode" maxlength="3" autocomplete="off" placeholder="Code" required>
-      </label>
+      <div class="student-header">
+        <h1>Macroéconomie 3</h1>
+        <p>Validation de présence</p>
+      </div>
 
-      <button id="validateBtn" class="btn btn-primary" type="submit">✓ Valider ma présence</button>
-    </form>
-    <div id="studentMsg" class="message"></div>
-  </section>
-</main>
+      <!-- INFORMATIONS DE SESSION -->
+      <div id="sessionInfo" class="session-info">
+        <div class="session-info-title">Session en cours</div>
+        <div id="sessionDate">Vérification de la session...</div>
+      </div>
+
+      <!-- MESSAGE GLOBAL -->
+      <div id="message" class="message hidden"></div>
+
+      <!-- ÉTAPE 1 : CODE APOGÉE -->
+      <section id="identifierStep" class="student-step">
+
+        <h2>Identification</h2>
+
+        <p class="step-description">
+          Saisissez votre Code Apogée pour vérifier votre identité.
+        </p>
+
+        <form id="identifierForm">
+
+          <div class="form-group">
+            <label for="codeApogee">Code Apogée</label>
+
+            <input
+              type="text"
+              id="codeApogee"
+              name="codeApogee"
+              placeholder="Ex. 12345678"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              required
+            >
+          </div>
+
+          <button
+            type="submit"
+            id="verifyBtn"
+            class="primary-btn"
+          >
+            Vérifier mon identité
+          </button>
+
+        </form>
+
+      </section>
+
+      <!-- ÉTAPE 2 : IDENTITÉ VÉRIFIÉE -->
+      <section
+        id="identityStep"
+        class="student-step hidden"
+      >
+
+        <h2>Identité vérifiée</h2>
+
+        <div class="identity-card">
+
+          <div class="identity-row">
+            <span>Nom</span>
+            <strong id="studentNom">—</strong>
+          </div>
+
+          <div class="identity-row">
+            <span>Prénom</span>
+            <strong id="studentPrenom">—</strong>
+          </div>
+
+          <div class="identity-row">
+            <span>Parcours</span>
+            <strong id="studentParcours">—</strong>
+          </div>
+
+          <div class="identity-row">
+            <span>Code Apogée</span>
+            <strong id="studentCodeApogee">—</strong>
+          </div>
+
+        </div>
+
+        <div class="form-group oral-code-group">
+
+          <label for="oralCode">
+            Code de confirmation
+          </label>
+
+          <input
+            type="text"
+            id="oralCode"
+            name="oralCode"
+            placeholder="Entrez le code affiché au tableau"
+            maxlength="3"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            required
+          >
+
+          <small>
+            Le code vous est communiqué oralement par le professeur.
+          </small>
+
+        </div>
+
+        <div class="student-actions">
+
+          <button
+            type="button"
+            id="validateAttendanceBtn"
+            class="primary-btn"
+          >
+            Valider ma présence
+          </button>
+
+          <button
+            type="button"
+            id="changeStudentBtn"
+            class="secondary-btn"
+          >
+            Changer de Code Apogée
+          </button>
+
+        </div>
+
+      </section>
+
+      <!-- SUCCÈS -->
+      <section
+        id="successStep"
+        class="student-step success-step hidden"
+      >
+
+        <div class="success-icon">
+          ✓
+        </div>
+
+        <h2>Présence enregistrée</h2>
+
+        <p>
+          Votre présence à la session de Macroéconomie 3
+          a bien été enregistrée.
+        </p>
+
+        <div class="identity-card">
+
+          <div class="identity-row">
+            <span>Nom</span>
+            <strong id="successNom">—</strong>
+          </div>
+
+          <div class="identity-row">
+            <span>Prénom</span>
+            <strong id="successPrenom">—</strong>
+          </div>
+
+          <div class="identity-row">
+            <span>Parcours</span>
+            <strong id="successParcours">—</strong>
+          </div>
+
+        </div>
+
+      </section>
+
+    </section>
+
+  </main>
+
+  <!-- SUPABASE -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- CONFIGURATION SUPABASE -->
+  <script src="config.js"></script>
+
+  <!-- LOGIQUE ÉTUDIANT -->
+  <script src="student.js"></script>
+
 </body>
 </html>
