@@ -154,8 +154,8 @@ function renderStudents() {
   if ($("#studentsEconometrieAppliquee")) $("#studentsEconometrieAppliquee").innerHTML = buildStudentTable(eaStudents);
 }
 
-function buildStudentTable(students) {
-  if (!students.length) return `<div class="empty">Aucun étudiant dans ce groupe.</div>`;
+function buildRankingTable(list) {
+  if (!list.length) return `<div class="empty">Aucune donnée pour cette filière.</div>`;
 
   return `
     <div class="table-wrap">
@@ -164,19 +164,19 @@ function buildStudentTable(students) {
           <tr>
             <th>Code Apogée</th>
             <th>Nom & Prénom</th>
-            <th>Parcours</th>
-            <th>Actions</th>
+            <th>Présences</th>
+            <th>Absences</th>
+            <th>Taux de Présence</th>
           </tr>
         </thead>
         <tbody>
-          ${students.map(s => `
+          ${list.map(r => `
             <tr>
-              <td><code>${s.student_identifier}</code></td>
-              <td><strong>${s.nom} ${s.prenom}</strong></td>
-              <td><span class="badge badge-neutral">${s.parcours}</span></td>
-              <td>
-                <button class="btn btn-secondary" onclick="editStudent(${s.id})">✏️ Modifier</button>
-              </td>
+              <td><code>${r.student_identifier || '—'}</code></td>
+              <td><strong>${r.nom} ${r.prenom}</strong></td>
+              <td>${r.present_count} / ${r.total_sessions}</td>
+              <td><strong style="color: #ef4444;">${(r.total_sessions - r.present_count)}</strong></td>
+              <td><strong>${r.attendance_rate}%</strong></td>
             </tr>
           `).join("")}
         </tbody>
@@ -184,19 +184,6 @@ function buildStudentTable(students) {
     </div>
   `;
 }
-
-window.editStudent = (id) => {
-  const s = allStudents.find(x => x.id === id);
-  if (!s) return;
-
-  if ($("#studentIdInput")) $("#studentIdInput").value = s.id;
-  if ($("#studentNomInput")) $("#studentNomInput").value = s.nom;
-  if ($("#studentPrenomInput")) $("#studentPrenomInput").value = s.prenom;
-  if ($("#studentCodeApogeeInput")) $("#studentCodeApogeeInput").value = s.student_identifier;
-  if ($("#studentParcoursInput")) $("#studentParcoursInput").value = s.parcours;
-  
-  openModal("studentModal");
-};
 
 if ($("#openSessionBtn")) {
   $("#openSessionBtn").onclick = async () => {
