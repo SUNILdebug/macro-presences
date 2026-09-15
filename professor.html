@@ -18,7 +18,7 @@
 <main class="container">
   <section id="loginView" class="panel narrow">
     <h1>Espace professeur</h1>
-    <p class="muted">Connecte-toi avec le compte créé dans Supabase Authentication.</p>
+    <p class="muted">Connexion.</p>
     <form id="loginForm">
       <label>Email<input id="email" type="email" required autocomplete="username"></label>
       <label>Mot de passe<input id="password" type="password" required autocomplete="current-password"></label>
@@ -54,7 +54,7 @@
 
     <section class="panel">
       <div class="section-head">
-        <div><h2>Étudiants</h2><p class="muted">Ajoute les étudiants avant leur première présence.</p></div>
+        <div><h2>Étudiants</h2><p class="muted">Ajout et enregistrement user.</p></div>
         <button id="addStudentBtn" class="btn btn-primary">+ Ajouter</button>
       </div>
       <div class="toolbar">
@@ -70,7 +70,7 @@
 
     <section class="panel">
       <div class="section-head">
-        <div><h2>Historique des séances</h2><p class="muted">Clique sur une séance pour voir les présents.</p></div>
+        <div><h2>Historique des séances</h2><p class="muted">Cliquez pour voir les présents.</p></div>
       </div>
       <div class="table-wrap"><table><thead><tr><th>Date</th><th>Horaire</th><th>Statut</th><th>Présents</th><th>Action</th></tr></thead><tbody id="sessionsBody"></tbody></table></div>
     </section>
