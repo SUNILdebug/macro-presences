@@ -11,24 +11,24 @@
 </head>
 <body>
 <header class="topbar">
-  <div><strong>Macroéconomie 3</strong><span class="topbar-sub">Présence étudiant</span></div>
+  <div><strong>Macroéconomie 3</strong></div>
 </header>
 <main class="container student-container">
   <section class="panel narrow">
     <div id="sessionBadge" class="badge badge-neutral">Vérification de la séance…</div>
     <h1>Valider ma présence</h1>
-    <p class="muted">Entre ton identifiant étudiant, puis le code donné oralement par le professeur.</p>
+    
 
     <form id="attendanceForm">
-      <label>Identifiant étudiant
-        <input id="identifier" inputmode="numeric" maxlength="10" placeholder="Ex. 0101" required>
+      <label>Code Apogée
+        <input id="identifier" inputmode="numeric" maxlength="10" placeholder="Code Apogée" required>
       </label>
       <button type="button" id="findStudentBtn" class="btn btn-secondary">Vérifier mon identité</button>
 
       <div id="identityCard" class="identity-card hidden"></div>
 
       <label>Code de confirmation
-        <input id="confirmationCode" maxlength="3" autocomplete="off" placeholder="Ex. 27K" required>
+        <input id="confirmationCode" maxlength="3" autocomplete="off" placeholder="Code" required>
       </label>
 
       <button id="validateBtn" class="btn btn-primary" type="submit">✓ Valider ma présence</button>

@@ -18,7 +18,7 @@
 <main class="container">
   <section id="loginView" class="panel narrow">
     <h1>Espace professeur</h1>
-    <p class="muted">Connecte-toi avec le compte créé dans Supabase Authentication.</p>
+    
     <form id="loginForm">
       <label>Email<input id="email" type="email" required autocomplete="username"></label>
       <label>Mot de passe<input id="password" type="password" required autocomplete="current-password"></label>
@@ -31,7 +31,7 @@
     <div class="dashboard-head">
       <div>
         <h1>Tableau de bord</h1>
-        <p class="muted">Gestion centralisée des étudiants, séances et présences.</p>
+        
       </div>
       <div class="head-actions">
         <button id="refreshBtn" class="btn btn-secondary">Actualiser</button>
@@ -54,7 +54,7 @@
 
     <section class="panel">
       <div class="section-head">
-        <div><h2>Étudiants</h2><p class="muted">Ajoute les étudiants avant leur première présence.</p></div>
+        <div><h2>Étudiants</h2></div>
         <button id="addStudentBtn" class="btn btn-primary">+ Ajouter</button>
       </div>
       <div class="toolbar">
@@ -65,18 +65,33 @@
           <option value="Économétrie appliquée">Économétrie appliquée</option>
         </select>
       </div>
-      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Nom</th><th>Prénom</th><th>Parcours</th><th>Actions</th></tr></thead><tbody id="studentsBody"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Code Apogée</th><th>Nom</th><th>Prénom</th><th>Parcours</th><th>Actions</th></tr></thead><tbody id="studentsBody"></tbody></table></div>
     </section>
 
     <section class="panel">
       <div class="section-head">
-        <div><h2>Historique des séances</h2><p class="muted">Clique sur une séance pour voir les présents.</p></div>
+        <div><h2>Suivi des étudiants</h2><p class="muted">Présences cumulées par parcours.</p></div>
+      </div>
+      <div class="toolbar">
+        <input id="rankingSearch" placeholder="Rechercher un étudiant…">
+        <select id="rankingTrack">
+          <option value="">Tous les parcours</option>
+          <option value="Analyse économique">Analyse économique</option>
+          <option value="Économétrie appliquée">Économétrie appliquée</option>
+        </select>
+      </div>
+      <div id="rankingTables"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div><h2>Historique des séances</h2></div>
       </div>
       <div class="table-wrap"><table><thead><tr><th>Date</th><th>Horaire</th><th>Statut</th><th>Présents</th><th>Action</th></tr></thead><tbody id="sessionsBody"></tbody></table></div>
     </section>
 
     <section class="panel">
-      <div class="section-head"><div><h2>Détail de séance</h2><p id="detailTitle" class="muted">Sélectionne une séance.</p></div></div>
+      <div class="section-head"><div><h2>Détail de séance</h2><p id="detailTitle" class="muted">—</p></div></div>
       <div id="sessionDetail" class="empty">Aucune séance sélectionnée.</div>
     </section>
   </section>
