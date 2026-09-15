@@ -1,397 +1,93 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Macroéconomie 3 — Professeur</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Professeur — Macroéconomie 3</title>
   <link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-  <header class="topbar">
-    <div>
-      <h1>Macroéconomie 3</h1>
-      <p>Gestion des présences</p>
-    </div>
-
-    <button id="logoutBtn" class="secondary-btn">
-      Déconnexion
-    </button>
-  </header>
-
-  <main class="container">
-
-    <!-- CONNEXION -->
-    <section id="loginSection" class="card">
-      <h2>Espace professeur</h2>
-
-      <form id="loginForm">
-        <label for="email">Adresse e-mail</label>
-        <input
-          type="email"
-          id="email"
-          autocomplete="email"
-          required
-        >
-
-        <label for="password">Mot de passe</label>
-        <input
-          type="password"
-          id="password"
-          autocomplete="current-password"
-          required
-        >
-
-        <button type="submit" class="primary-btn">
-          Se connecter
-        </button>
-      </form>
-
-      <p id="loginMessage" class="message"></p>
-    </section>
-
-    <!-- TABLEAU DE BORD -->
-    <section id="dashboardSection" hidden>
-
-      <div class="page-heading">
-        <div>
-          <h2>Tableau de bord</h2>
-          <p>Suivi des présences de Macroéconomie 3</p>
-        </div>
-      </div>
-
-      <!-- ACTIONS -->
-      <section class="card">
-        <div class="section-header">
-          <div>
-            <h3>Nouvelle séance</h3>
-            <p>Ouvrez une séance pour générer le QR code et le code oral.</p>
-          </div>
-        </div>
-
-        <button id="openSessionBtn" class="primary-btn">
-          Ouvrir une nouvelle séance
-        </button>
-
-        <p id="sessionActionMessage" class="message"></p>
-      </section>
-
-      <!-- SESSION ACTIVE -->
-      <section id="activeSessionSection" class="card" hidden>
-        <div class="section-header">
-          <div>
-            <h3>Séance en cours</h3>
-            <p id="activeSessionDate"></p>
-          </div>
-
-          <button id="refreshSessionBtn" class="secondary-btn">
-            Actualiser
-          </button>
-        </div>
-
-        <div class="session-grid">
-
-          <div class="session-info">
-            <div class="info-box">
-              <span class="info-label">Code oral</span>
-              <strong id="confirmationCode">---</strong>
-            </div>
-
-            <div class="info-box">
-              <span class="info-label">Présents</span>
-              <strong id="presentCount">0</strong>
-            </div>
-
-            <div class="info-box">
-              <span class="info-label">Statut</span>
-              <strong id="activeSessionStatus">ACTIVE</strong>
-            </div>
-          </div>
-
-          <div class="qr-container">
-            <h4>QR code</h4>
-            <img
-              id="qrCodeImage"
-              src=""
-              alt="QR code de la séance"
-            >
-          </div>
-
-        </div>
-
-        <div class="session-actions">
-          <button id="closeSessionBtn" class="danger-btn">
-            Fermer la séance
-          </button>
-        </div>
-
-        <div class="present-list-container">
-          <h4>Étudiants présents</h4>
-          <div id="presentList"></div>
-        </div>
-      </section>
-
-      <!-- INSCRIPTION -->
-      <section class="card">
-        <div class="section-header">
-          <div>
-            <h3>Étudiants</h3>
-            <p>Inscription et suivi des étudiants du cours.</p>
-          </div>
-
-          <button id="addStudentBtn" class="primary-btn">
-            Ajouter un étudiant
-          </button>
-        </div>
-
-        <div class="filters">
-          <input
-            type="search"
-            id="studentSearch"
-            placeholder="Rechercher nom, prénom ou Code Apogée..."
-          >
-
-          <select id="trackFilter">
-            <option value="">Tous les parcours</option>
-            <option value="Analyse économique">
-              Analyse économique
-            </option>
-            <option value="Économétrie appliquée">
-              Économétrie appliquée
-            </option>
-          </select>
-        </div>
-
-        <div class="track-section">
-          <h4>Analyse économique</h4>
-          <div id="economicStudents"></div>
-        </div>
-
-        <div class="track-section">
-          <h4>Économétrie appliquée</h4>
-          <div id="econometricsStudents"></div>
-        </div>
-      </section>
-
-      <!-- HISTORIQUE -->
-      <section class="card">
-        <div class="section-header">
-          <div>
-            <h3>Historique des séances</h3>
-            <p>Consultez les présences séance par séance.</p>
-          </div>
-
-          <button id="refreshHistoryBtn" class="secondary-btn">
-            Actualiser
-          </button>
-        </div>
-
-        <div id="sessionsHistory"></div>
-      </section>
-
-      <!-- SUIVI -->
-      <section class="card">
-        <div class="section-header">
-          <div>
-            <h3>Suivi des étudiants</h3>
-            <p>Classement selon le taux de présence aux séances terminées.</p>
-          </div>
-
-          <button id="refreshRankingBtn" class="secondary-btn">
-            Actualiser
-          </button>
-        </div>
-
-        <div class="track-section">
-          <h4>Analyse économique</h4>
-          <div id="economicRanking"></div>
-        </div>
-
-        <div class="track-section">
-          <h4>Économétrie appliquée</h4>
-          <div id="econometricsRanking"></div>
-        </div>
-      </section>
-
-    </section>
-  </main>
-
-  <!-- MODALE AJOUT -->
-  <div id="studentModal" class="modal" hidden>
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Ajouter un étudiant</h3>
-        <button
-          type="button"
-          class="modal-close"
-          data-close-modal="studentModal"
-        >
-          ×
-        </button>
-      </div>
-
-      <form id="studentForm">
-
-        <label for="studentNom">Nom</label>
-        <input
-          type="text"
-          id="studentNom"
-          required
-        >
-
-        <label for="studentPrenom">Prénom</label>
-        <input
-          type="text"
-          id="studentPrenom"
-          required
-        >
-
-        <label for="studentCodeApogee">Code Apogée</label>
-        <input
-          type="text"
-          id="studentCodeApogee"
-          required
-          autocomplete="off"
-        >
-
-        <label for="studentParcours">Parcours</label>
-        <select id="studentParcours" required>
-          <option value="">Sélectionner un parcours</option>
-          <option value="Analyse économique">
-            Analyse économique
-          </option>
-          <option value="Économétrie appliquée">
-            Économétrie appliquée
-          </option>
-        </select>
-
-        <p id="studentFormMessage" class="message"></p>
-
-        <div class="modal-actions">
-          <button
-            type="button"
-            class="secondary-btn"
-            data-close-modal="studentModal"
-          >
-            Annuler
-          </button>
-
-          <button type="submit" class="primary-btn">
-            Enregistrer
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODALE MODIFICATION -->
-  <div id="editStudentModal" class="modal" hidden>
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Modifier un étudiant</h3>
-        <button
-          type="button"
-          class="modal-close"
-          data-close-modal="editStudentModal"
-        >
-          ×
-        </button>
-      </div>
-
-      <form id="editStudentForm">
-
-        <input type="hidden" id="editStudentId">
-
-        <label for="editStudentNom">Nom</label>
-        <input
-          type="text"
-          id="editStudentNom"
-          required
-        >
-
-        <label for="editStudentPrenom">Prénom</label>
-        <input
-          type="text"
-          id="editStudentPrenom"
-          required
-        >
-
-        <label for="editStudentCodeApogee">
-          Code Apogée
-        </label>
-        <input
-          type="text"
-          id="editStudentCodeApogee"
-          disabled
-        >
-
-        <label for="editStudentParcours">Parcours</label>
-        <select id="editStudentParcours" required>
-          <option value="Analyse économique">
-            Analyse économique
-          </option>
-          <option value="Économétrie appliquée">
-            Économétrie appliquée
-          </option>
-        </select>
-
-        <p id="editStudentMessage" class="message"></p>
-
-        <div class="modal-actions">
-          <button
-            type="button"
-            class="secondary-btn"
-            data-close-modal="editStudentModal"
-          >
-            Annuler
-          </button>
-
-          <button type="submit" class="primary-btn">
-            Enregistrer
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODALE ÉTUDIANT -->
-  <div id="studentDetailModal" class="modal" hidden>
-    <div class="modal-content large-modal">
-      <div class="modal-header">
-        <h3>Détail étudiant</h3>
-        <button
-          type="button"
-          class="modal-close"
-          data-close-modal="studentDetailModal"
-        >
-          ×
-        </button>
-      </div>
-
-      <div id="studentDetailContent"></div>
-    </div>
-  </div>
-
-  <!-- MODALE SÉANCE -->
-  <div id="sessionDetailModal" class="modal" hidden>
-    <div class="modal-content large-modal">
-      <div class="modal-header">
-        <h3>Détail de la séance</h3>
-        <button
-          type="button"
-          class="modal-close"
-          data-close-modal="sessionDetailModal"
-        >
-          ×
-        </button>
-      </div>
-
-      <div id="sessionDetailContent"></div>
-    </div>
-  </div>
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="professor.js"></script>
+  <script defer src="professor.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div><strong>Macroéconomie 3</strong><span class="topbar-sub">Professeur</span></div>
+  <button id="logoutBtn" class="btn btn-ghost hidden">Déconnexion</button>
+</header>
+
+<main class="container">
+  <section id="loginView" class="panel narrow">
+    <h1>Espace professeur</h1>
+    <p class="muted">Connecte-toi avec le compte créé dans Supabase Authentication.</p>
+    <form id="loginForm">
+      <label>Email<input id="email" type="email" required autocomplete="username"></label>
+      <label>Mot de passe<input id="password" type="password" required autocomplete="current-password"></label>
+      <button class="btn btn-primary" type="submit">Se connecter</button>
+    </form>
+    <div id="loginMsg" class="message"></div>
+  </section>
+
+  <section id="dashboardView" class="hidden">
+    <div class="dashboard-head">
+      <div>
+        <h1>Tableau de bord</h1>
+        <p class="muted">Gestion centralisée des étudiants, séances et présences.</p>
+      </div>
+      <div class="head-actions">
+        <button id="refreshBtn" class="btn btn-secondary">Actualiser</button>
+        <button id="openSessionBtn" class="btn btn-primary">▶ Ouvrir la séance</button>
+      </div>
+    </div>
+
+    <div id="globalStats" class="stats-grid"></div>
+
+    <section id="currentSessionPanel" class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Séance actuelle</h2>
+          <p id="sessionMeta" class="muted">Aucune séance active.</p>
+        </div>
+        <button id="closeSessionBtn" class="btn btn-danger hidden">Fermer la séance</button>
+      </div>
+      <div id="sessionContent" class="empty">Aucune séance active.</div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div><h2>Étudiants</h2><p class="muted">Ajoute les étudiants avant leur première présence.</p></div>
+        <button id="addStudentBtn" class="btn btn-primary">+ Ajouter</button>
+      </div>
+      <div class="toolbar">
+        <input id="studentSearch" placeholder="Rechercher nom, prénom ou identifiant…">
+        <select id="trackFilter">
+          <option value="">Tous les parcours</option>
+          <option value="Analyse économique">Analyse économique</option>
+          <option value="Économétrie appliquée">Économétrie appliquée</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Nom</th><th>Prénom</th><th>Parcours</th><th>Actions</th></tr></thead><tbody id="studentsBody"></tbody></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div><h2>Historique des séances</h2><p class="muted">Clique sur une séance pour voir les présents.</p></div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Horaire</th><th>Statut</th><th>Présents</th><th>Action</th></tr></thead><tbody id="sessionsBody"></tbody></table></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head"><div><h2>Détail de séance</h2><p id="detailTitle" class="muted">Sélectionne une séance.</p></div></div>
+      <div id="sessionDetail" class="empty">Aucune séance sélectionnée.</div>
+    </section>
+  </section>
+</main>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose">×</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
 </body>
 </html>
