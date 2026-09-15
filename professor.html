@@ -56,7 +56,7 @@
       </div>
     </div>
 
-    <!-- SÉANCE ACTIVEE -->
+    <!-- SÉANCE ACTIVÉE -->
     <section id="activeSessionSection" class="panel hidden">
       <div class="section-head">
         <div>
@@ -125,7 +125,7 @@
       </div>
     </section>
 
-    <!-- HISTORIQUE ET CLASSEMENT DES SÉANCES -->
+    <!-- HISTORIQUE DES SÉANCES -->
     <section class="panel">
       <div class="section-head">
         <div>
@@ -151,12 +151,13 @@
 
 </main>
 
-<!-- MODALE : AJOUTER ÉTUDIANT -->
+<!-- MODALE : AJOUTER / ENREGISTRER UN ÉTUDIANT -->
 <div id="studentModal" class="modal hidden">
   <div class="modal-box">
     <button type="button" class="modal-close" data-close-modal>&times;</button>
-    <h2>Ajouter un étudiant</h2>
+    <h2>Enregistrer un étudiant</h2>
     <form id="studentForm">
+      <input type="hidden" id="studentIdInput">
       <div class="form-group">
         <label for="studentNomInput">Nom</label>
         <input id="studentNomInput" type="text" required>
@@ -184,7 +185,7 @@
   </div>
 </div>
 
-<!-- MODALE : MODIFIER ÉTUDIANT -->
+<!-- MODALE : MODIFIER UN ÉTUDIANT -->
 <div id="editStudentModal" class="modal hidden">
   <div class="modal-box">
     <button type="button" class="modal-close" data-close-modal>&times;</button>
@@ -225,7 +226,7 @@
   </div>
 </div>
 
-<!-- MODALE : DÉTAIL SÉANCE -->
+<!-- MODALE : DÉTAILS D'UNE SÉANCE PASSÉE -->
 <div id="sessionDetailModal" class="modal hidden">
   <div class="modal-box">
     <button type="button" class="modal-close" data-close-modal>&times;</button>
@@ -233,17 +234,6 @@
     <div id="sessionDetailContent"></div>
   </div>
 </div>
-<!-- Modal Détails de Séance Passée -->
-<div id="sessionDetailModal" class="modal hidden">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3 id="sessionDetailTitle">Présences de la séance</h3>
-      <button class="btn-close" data-close-modal>&times;</button>
-    </div>
-    <div class="modal-body" id="sessionDetailContent">
-      <!-- Rempli dynamiquement en JS -->
-    </div>
-  </div>
-</div>
+
 </body>
 </html>
