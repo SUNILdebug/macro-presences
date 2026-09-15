@@ -10,31 +10,47 @@
   <script defer src="student.js"></script>
 </head>
 <body>
+
 <header class="topbar">
-  <div><strong>Macroéconomie 3</strong><span class="topbar-sub">Présence étudiant</span></div>
+  <div>
+    <strong>Macroéconomie 3</strong>
+    <span class="topbar-sub">Validation Présence Étudiant</span>
+  </div>
 </header>
+
 <main class="container student-container">
   <section class="panel narrow">
+    
     <div id="sessionBadge" class="badge badge-neutral">Vérification de la séance…</div>
+    
     <h1>Valider ma présence</h1>
-    <p class="muted">Entre ton identifiant étudiant, puis le code donné  par le professeur.</p>
+    <p class="muted">Saisis ton Code Apogée, vérifie ton identité, puis entre le code affiché par le professeur.</p>
 
     <form id="attendanceForm">
-      <label>Identifiant étudiant
-        <input id="identifier" inputmode="numeric" maxlength="10" placeholder="Ex. 0101" required>
-      </label>
+      
+      <div class="form-group">
+        <label for="identifier">Code Apogée</label>
+        <input id="identifier" type="text" placeholder="Ex. 20001234" required>
+      </div>
+
       <button type="button" id="findStudentBtn" class="btn btn-secondary">Vérifier mon identité</button>
 
+      <!-- CARTE D'IDENTITÉ ÉTUDIANT (AFFICHE NOM, PRÉNOM ET PARCOURS) -->
       <div id="identityCard" class="identity-card hidden"></div>
 
-      <label>Code de confirmation
-        <input id="confirmationCode" maxlength="3" autocomplete="off" placeholder="Ex. 27K" required>
-      </label>
+      <div class="form-group">
+        <label for="confirmationCode">Code de confirmation (4 chiffres)</label>
+        <input id="confirmationCode" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Ex. 1234" required>
+      </div>
 
       <button id="validateBtn" class="btn btn-primary" type="submit">✓ Valider ma présence</button>
+
     </form>
-    <div id="studentMsg" class="message"></div>
+
+    <div id="studentMsg" class="message hidden"></div>
+
   </section>
 </main>
+
 </body>
 </html>
