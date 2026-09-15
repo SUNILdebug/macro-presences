@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Présence — Macroéconomie 3</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script defer src="student.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div><strong>Macroéconomie 3</strong><span class="topbar-sub">Présence étudiant</span></div>
+</header>
+<main class="container student-container">
+  <section class="panel narrow">
+    <div id="sessionBadge" class="badge badge-neutral">Vérification de la séance…</div>
+    <h1>Valider ma présence</h1>
+    <p class="muted">Entre ton identifiant étudiant, puis le code donné oralement par le professeur.</p>
+
+    <form id="attendanceForm">
+      <label>Identifiant étudiant
+        <input id="identifier" inputmode="numeric" maxlength="10" placeholder="Ex. 0101" required>
+      </label>
+      <button type="button" id="findStudentBtn" class="btn btn-secondary">Vérifier mon identité</button>
+
+      <div id="identityCard" class="identity-card hidden"></div>
+
+      <label>Code de confirmation
+        <input id="confirmationCode" maxlength="3" autocomplete="off" placeholder="Ex. 27K" required>
+      </label>
+
+      <button id="validateBtn" class="btn btn-primary" type="submit">✓ Valider ma présence</button>
+    </form>
+    <div id="studentMsg" class="message"></div>
+  </section>
+</main>
+</body>
+</html>
